@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2025 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "wings.h"
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <sys/poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -792,17 +793,17 @@ void glRenderingContext::resize_canvas(int width, int height) {
 #endif
 }
 
-std::unique_ptr<RenderingContext> RenderingContext::create(
+std::shared_ptr<RenderingContext> RenderingContext::create(
     const RenderingContext& ctx) {
   if (ctx.type == RenderingContextType::kOpenGL)
-    return std::make_unique<glRenderingContext>(&ctx);
+    return std::make_shared<glRenderingContext>(&ctx);
   return nullptr;
 }
 
-std::unique_ptr<RenderingContext> RenderingContext::create(
+std::shared_ptr<RenderingContext> RenderingContext::create(
     RenderingContextType type) {
   if (type == RenderingContextType::kOpenGL)
-    return std::make_unique<glRenderingContext>(nullptr);
+    return std::make_shared<glRenderingContext>(nullptr);
   return nullptr;
 }
 
@@ -823,6 +824,9 @@ class WebsocketClient {
 
     size_t max_length = 1e5;
     std::string frame(max_length, ' ');
+
+    int flags = fcntl(fd_, F_GETFL, 0);
+    fcntl(fd_, F_SETFL, flags | O_NONBLOCK);
 
     struct pollfd p[1];
     p[0].fd = fd_;
@@ -882,6 +886,15 @@ class WebsocketClient {
             } else if (message[1] == 'S') {
               input.type = InputType::KeyValueStr;
               input.svalue = &message[3];
+            } else if (message[0] == 'A') {
+              input.type = InputType::AnimationRequest;
+              if (message[1] == 'L') input.looping = true;
+
+            } else if (message[0] == 'S') {
+              input.type = InputType::SetTime;
+              input.time = std::atoi(message.substr(3, 9).c_str());
+            } else if (message[0] == 'F') {
+              input.type = InputType::SetFrames;
             }
           }
 
@@ -970,7 +983,7 @@ class WebsocketClient {
   const int fd_;
   const int idx_;
   std::future<StatusCode> listener_;
-  std::unique_ptr<RenderingContext> context_;
+  std::shared_ptr<RenderingContext> context_;
   std::string img_;
   std::string bytes_;
   int64_t n_bytes_{0};

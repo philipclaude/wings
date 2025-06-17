@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2025 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -38,7 +38,11 @@ enum class InputType : uint32_t {
   KeyValueFloat,
   KeyValueStr,
   KeyPressed,
-  KeyReleased
+  KeyReleased,
+  AnimationRequest,
+  GetTime,
+  SetTime,
+  SetFrames
 };
 
 // Client input passed to the Scene::render function.
@@ -53,6 +57,8 @@ struct ClientInput {
   float fvalue{0.0f};
   int ivalue{0};
   const char* svalue{nullptr};
+  float time{0.0f};
+  bool looping{false};
 };
 
 // Possible rendering context types.
@@ -69,11 +75,11 @@ struct RenderingContext {
   void print(bool with_extensions = false);
 
   // Creates a rendering context of a specific type at the server-level.
-  static std::unique_ptr<RenderingContext> create(RenderingContextType type);
+  static std::shared_ptr<RenderingContext> create(RenderingContextType type);
 
   // Creates a rendering context from an existing server context, thus sharing
   // resources such as buffers but not containers such as vertex array objects.
-  static std::unique_ptr<RenderingContext> create(const RenderingContext& ctx);
+  static std::shared_ptr<RenderingContext> create(const RenderingContext& ctx);
 
   // Starts a rendering section.
   void enter_render_section() {
@@ -154,7 +160,7 @@ class Scene {
   const std::vector<unsigned char>& pixels() const { return pixels_; }
 
  protected:
-  std::unique_ptr<RenderingContext> context_;
+  std::shared_ptr<RenderingContext> context_;
   std::vector<unsigned char> pixels_;
   int quality_{80};
   int width_{800};
