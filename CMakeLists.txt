@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 
 project(wings LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
@@ -126,6 +126,12 @@ if (${WINGS_BUILD_APPS})
 	add_executable(vwing apps/vwing/main.cpp)
 	target_link_libraries(vwing wings_util_static wings_io_src wings dl)
 	target_compile_definitions(vwing PUBLIC -DWINGS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
+	# wings main program
+	add_executable(wings_exe apps/wings/main.cpp)
+	set_property(TARGET wings_exe PROPERTY OUTPUT_NAME wings)
+	target_link_libraries(wings_exe wings_util_static wings_io_src wings dl)
+	target_compile_definitions(wings_exe PUBLIC -DWINGS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 endif()
 
 # utility to remove external repositories

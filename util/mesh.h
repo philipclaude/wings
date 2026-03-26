@@ -35,12 +35,18 @@ class TopologyBase : public array2d<index_t> {
   TopologyBase(int stride) : array2d<index_t>(stride) {}
 
  public:
+  void allocate(size_t n) {
+    array2d<index_t>::allocate(n);
+    group_.resize(n);
+  }
+
   void reserve(int64_t m) {
     array2d<index_t>::reserve(m);
     group_.reserve(m);
   }
 
-  template <typename R> void add(const R* x, int m = -1) {
+  template <typename R>
+  void add(const R* x, int m = -1) {
     (m < 0) ? array2d<index_t>::template add<R>(x)
             : array2d<index_t>::template add<R>(x, m);
     group_.push_back(-1);
@@ -60,10 +66,12 @@ class TopologyBase : public array2d<index_t> {
   std::vector<int32_t> group_;
 };
 
-template <typename T> class Topology : public TopologyBase {
+template <typename T>
+class Topology : public TopologyBase {
  public:
   using TopologyBase::length;
   using TopologyBase::n;
+  using type = T;
 
   Topology() : TopologyBase(T::n_vertices) {}
 
@@ -71,13 +79,15 @@ template <typename T> class Topology : public TopologyBase {
   void flip_orientation();
 };
 
-template <> class Topology<Polyhedron> : public TopologyBase {
+template <>
+class Topology<Polyhedron> : public TopologyBase {
  public:
   Topology() : TopologyBase(-1), orientation_(-1) {}
 
   void reserve(int n) { array2d<index_t>::reserve(n); }
 
-  template <typename R, typename S> void add(const R* x, const S* s, int n) {
+  template <typename R, typename S>
+  void add(const R* x, const S* s, int n) {
     TopologyBase::template add<R>(x, n);
     orientation_.add<S>(s, n);
     group_.push_back(-1);
@@ -107,7 +117,8 @@ class Vertices : public array2d<coord_t> {
   int dim() const { return array2d<coord_t>::stride(); }
   void set_dim(int dim) { array2d<coord_t>::set_stride(dim); }
 
-  template <typename R> void add(const R* x, int32_t id = -1) {
+  template <typename R>
+  void add(const R* x, int32_t id = -1) {
     array2d<coord_t>::template add<R>(x);
     group_.push_back(id);
     entity_.push_back(nullptr);
@@ -146,6 +157,13 @@ class Vertices : public array2d<coord_t> {
   }
 
   void print() const;
+
+  void allocate(size_t n_vertices) {
+    array2d<double>::allocate(n_vertices);
+    group_.resize(n_vertices);
+  }
+
+  auto& groups() { return group_; }
 
  private:
   std::vector<int32_t> group_;
@@ -186,9 +204,11 @@ class Mesh {
 
   void get_edges(std::vector<Edge>& edges) const;
 
-  template <typename T> const Topology<T>& get() const;
+  template <typename T>
+  const Topology<T>& get() const;
 
-  template <typename T> Topology<T>& get();
+  template <typename T>
+  Topology<T>& get();
 
   const FieldLibrary& fields() const { return fields_; }
   FieldLibrary& fields() { return fields_; }

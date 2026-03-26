@@ -69,6 +69,11 @@ class array2d {
     for (int k = 0; k < N; k++) add(x.data());
   }
 
+  void allocate(size_t n) {
+    ASSERT(stride_ > 0);
+    data_.resize(n * stride_);
+  }
+
   /**
    * \brief Prevent copy constructor, i.e. array2d<int> a2 = a1;
    */

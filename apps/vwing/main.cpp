@@ -1069,6 +1069,29 @@ int main(int argc, const char** argv) {
   wings::Mesh mesh(3);
   read_mesh(argv[1], mesh);
 
+  // calculate bounding box
+  wings::vec3f xmin{1e20, 1e20, 1e20}, xmax = -1.0f * xmin;
+  for (size_t k = 0; k < mesh.vertices().n(); k++) {
+    for (int d = 0; d < mesh.vertices().dim(); d++) {
+      auto x = mesh.vertices()[k][d];
+      if (x < xmin[d]) xmin[d] = x;
+      if (x > xmax[d]) xmax[d] = x;
+    }
+  }
+
+  // scale and center vertices
+  float lmax = xmax[0] - xmin[0];
+  for (int d = 1; d < 3; d++) {
+    lmax = std::max(lmax, xmax[d] - xmin[d]);
+  }
+  wings::vec3f center = 0.5f * (xmin + xmax);
+  for (size_t k = 0; k < mesh.vertices().n(); k++) {
+    for (int d = 0; d < 3; d++) {
+      auto x = mesh.vertices()[k][d];
+      mesh.vertices()[k][d] = 2.0 * (x - center[d]) / lmax;
+    }
+  }
+
   mesh.fields().set_defaults(mesh);
   wings::Viewer viewer(mesh, ws_port);
 

@@ -32,38 +32,30 @@
 namespace wings {
 
 namespace meshb {
+
+#define ASSERT_GMF(X) ASSERT((X) == 1)
+
 void read_vertices(int64_t fid, int version, Vertices& vertices) {
-  int status = 1;
   int dim = vertices.dim();
-  double dvalues[4] = {0, 0, 0, 0};
-  float fvalues[4] = {0, 0, 0, 0};
-
   ASSERT(GmfGotoKwd(fid, GmfVertices) > 0);
-  int n = GmfStatKwd(fid, GmfVertices);
-  vertices.reserve(n);
-  LOG << fmt::format("reading {} vertices", n);
-
-  for (int k = 0; k < n; k++) {
-    int domain = -1;
-    if (dim == 2) {
-      if (version == 1)
-        status = GmfGetLin(fid, GmfVertices, &fvalues[0], &fvalues[1], &domain);
-      else
-        status = GmfGetLin(fid, GmfVertices, &dvalues[0], &dvalues[1], &domain);
-    } else if (dim == 3) {
-      if (version == 1)
-        GmfGetLin(fid, GmfVertices, &fvalues[0], &fvalues[1], &fvalues[2],
-                  &domain);
-      else
-        GmfGetLin(fid, GmfVertices, &dvalues[0], &dvalues[1], &dvalues[2],
-                  &domain);
+  size_t n = GmfStatKwd(fid, GmfVertices);
+  int n_bits = version == 1 ? 32 : 64;
+  LOGF("Reading {} vertices, dim = {} ({}-bit).", n, dim, n_bits);
+  std::vector<int> groups(n);
+  vertices.allocate(n);
+  // auto& groups = vertices.groups();
+  if (version == 1) {  // 32-bit reals
+    std::vector<float> coords(n * dim);
+    ASSERT_GMF(GmfGetBlock(fid, GmfVertices, 1, n, 0, NULL, NULL, GmfFloatVec,
+                           dim, &coords[0], &coords[(n - 1) * dim], GmfInt,
+                           groups.begin(), groups.end()));
+    for (size_t k = 0; k < n; k++) {
+      for (int j = 0; j < dim; j++) vertices[k][j] = coords[k * dim + j];
     }
-    ASSERT(status == 1);
-
-    if (version == 1) {
-      for (int d = 0; d < 3; d++) dvalues[d] = double(fvalues[d]);
-    }
-    vertices.add(dvalues, domain - 1);
+  } else {  // 64-bit reals
+    ASSERT_GMF(GmfGetBlock(fid, GmfVertices, 1, n, 0, NULL, NULL, GmfDoubleVec,
+                           dim, vertices[0], vertices[n - 1], GmfInt,
+                           groups.begin(), groups.end()));
   }
 }
 
@@ -162,6 +154,52 @@ void read_tetrahedra(int64_t fid, Mesh& mesh) {
 
     mesh.tetrahedra().add(tet);
     mesh.tetrahedra().set_group(k, data[4]);
+  }
+}
+
+template <typename T>
+struct Type2Keyword;
+template <>
+struct Type2Keyword<Line> {
+  static const auto type = GmfEdges;
+  const std::string name = "lines";
+};
+template <>
+struct Type2Keyword<Triangle> {
+  static const auto type = GmfTriangles;
+  const std::string name = "triangles";
+};
+template <>
+struct Type2Keyword<Tet> {
+  static const auto type = GmfTetrahedra;
+  const std::string name = "tetrahedra";
+};
+// template <>
+// struct Type2Keyword<Pentatope> {
+//   static const auto type = GmfPentatopes;
+//   const std::string name = "pentatopes";
+// };
+
+template <typename T>
+void read_simplices(int64_t fid, const Vertices& vertices,
+                    Topology<T>& topology) {
+  Type2Keyword<T> converter;
+  auto kwd = converter.type;
+  if (GmfGotoKwd(fid, kwd) <= 0) return;
+
+  ASSERT(GmfGotoKwd(fid, kwd) > 0);
+  size_t n = GmfStatKwd(fid, kwd);
+  LOGF("Reading {} {}.", n, converter.name);
+
+  std::vector<std::array<long, T::n_vertices + 1>> data(n);
+  GmfGetBlock(fid, kwd, 1, n, 0, nullptr, nullptr, GmfLongVec,
+              T::n_vertices + 1, &data.front(), &data.back());
+
+  topology.allocate(n);
+  for (size_t k = 0; k < n; k++) {
+    auto group = data[k].back();
+    for (int i = 0; i < T::n_vertices; i++) topology(k, i) = data[k][i] - 1;
+    topology.set_group(k, group);
   }
 }
 
@@ -408,18 +446,28 @@ void read(const std::string& filename, Mesh& mesh) {
   int version;
   int dim;
   int64_t fid = GmfOpenMesh(filename.c_str(), GmfRead, &version, &dim);
-  ASSERT(fid) << "could not open mesh file " << filename;
+  ASSERT(fid) << "Could not open mesh file " << filename;
   mesh.vertices().set_dim(dim);
 
-  read_edges(fid, mesh);
-  read_triangles(fid, mesh);
+  // 0-dimensional
+  read_vertices(fid, version, mesh.vertices());
+
+  // 1-dimensional
+  read_simplices(fid, mesh.vertices(), mesh.lines());
+
+  // 2-dimensional
+  read_simplices(fid, mesh.vertices(), mesh.triangles());
   read_quads(fid, mesh);
-  read_tetrahedra(fid, mesh);
+  read_polygons(fid, mesh);
+
+  // 3-dimensional
+  read_simplices(fid, mesh.vertices(), mesh.tetrahedra());
   read_prisms(fid, mesh);
   read_pyramids(fid, mesh);
-  read_polygons(fid, mesh);
   read_polyhedra(fid, mesh);
-  read_vertices(fid, version, mesh.vertices());
+
+  // 4-dimensional
+  // read_simplices(fid, mesh.vertices(), mesh.pentatopes());
 
   GmfCloseMesh(fid);
 }
