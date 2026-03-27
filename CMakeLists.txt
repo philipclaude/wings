@@ -113,7 +113,7 @@ if (${WINGS_BUILD_APPS})
 	# external repositories
 	add_extern_repository(tinyobjloader GIT_REPOSITORY "https://github.com/tinyobjloader/tinyobjloader")
 	add_extern_repository(fmt GIT_REPOSITORY "https://github.com/fmtlib/fmt")
-	add_extern_repository(libmeshb GIT_REPOSITORY "https://github.com/LoicMarechal/libMeshb")
+	add_extern_repository(libmeshb GIT_REPOSITORY "https://github.com/philipclaude/libMeshb")
 	add_library(wings_io_src OBJECT util/io.cpp)
 	target_link_libraries(wings_io_src Meshb.7 tinyobjloader)
 

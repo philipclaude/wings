@@ -5,13 +5,15 @@ layout(location = 0) out vec4 fragColor;
 in vec3 v_Position;
 in vec3 v_Barycentric;
 flat in int v_TriangleID;
-flat in int v_EdgeVisibility;
+flat in vec3 v_EdgeVisibility;
 flat in int v_CellNumber;
+in vec3 v_Altitude;
 
 uniform sampler2D image;
 uniform samplerBuffer colormap;
 uniform samplerBuffer field;
 
+uniform float u_PixelScale;
 uniform int u_lighting;
 uniform int u_field_mode;
 uniform int u_edges;
@@ -55,14 +57,15 @@ void main() {
   vec3 ty = dFdy(v_Position);
   vec3 normal = normalize(cross(tx, ty));
 
-  vec3 barycentric = clamp(v_Barycentric, 0, 1);
-  if ((v_EdgeVisibility & 1) == 0) barycentric.x = 1.0;
-  if ((v_EdgeVisibility & 2) == 0) barycentric.y = 1.0;
-  if ((v_EdgeVisibility & 4) == 0) barycentric.z = 1.0;
+  // vec3 barycentric = clamp(v_Barycentric, 0, 1);
+  // vec3 altitude = mix(vec3(1.0), barycentric, v_EdgeVisibility);
+  // float d = min(min(altitude.x, altitude.y), altitude.z);
+  // float w = clamp(fwidth(d), 0.0001, 0.1);
+  // float intensity = u_edges * (1.0 - smoothstep(0, 2 * w, d));
 
-  vec3 altitude = smoothstep(vec3(0.0), 1.5 * fwidth(barycentric), barycentric);
+  vec3 altitude = mix(vec3(1e10), v_Altitude, v_EdgeVisibility);
   float d = min(min(altitude[0], altitude[1]), altitude[2]);
-  float intensity = u_edges * (1.0 - smoothstep(0.0, 1.0, d));
+  float intensity = 1.0 - smoothstep(0, 2, d * u_PixelScale * gl_FragCoord.w);
 
   vec3 color_constant = vec3(0.8);
   vec3 color_field = color_constant;

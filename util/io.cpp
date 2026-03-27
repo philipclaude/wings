@@ -174,15 +174,14 @@ struct Type2Keyword<Tet> {
   static const auto type = GmfTetrahedra;
   const std::string name = "tetrahedra";
 };
-// template <>
-// struct Type2Keyword<Pentatope> {
-//   static const auto type = GmfPentatopes;
-//   const std::string name = "pentatopes";
-// };
+template <>
+struct Type2Keyword<Pentatope> {
+  static const auto type = GmfPentatopes;
+  const std::string name = "pentatopes";
+};
 
 template <typename T>
-void read_simplices(int64_t fid, const Vertices& vertices,
-                    Topology<T>& topology) {
+void read_simplices(int64_t fid, Topology<T>& topology) {
   Type2Keyword<T> converter;
   auto kwd = converter.type;
   if (GmfGotoKwd(fid, kwd) <= 0) return;
@@ -453,21 +452,21 @@ void read(const std::string& filename, Mesh& mesh) {
   read_vertices(fid, version, mesh.vertices());
 
   // 1-dimensional
-  read_simplices(fid, mesh.vertices(), mesh.lines());
+  read_simplices(fid, mesh.lines());
 
   // 2-dimensional
-  read_simplices(fid, mesh.vertices(), mesh.triangles());
+  read_simplices(fid, mesh.triangles());
   read_quads(fid, mesh);
   read_polygons(fid, mesh);
 
   // 3-dimensional
-  read_simplices(fid, mesh.vertices(), mesh.tetrahedra());
+  read_simplices(fid, mesh.tetrahedra());
   read_prisms(fid, mesh);
   read_pyramids(fid, mesh);
   read_polyhedra(fid, mesh);
 
   // 4-dimensional
-  // read_simplices(fid, mesh.vertices(), mesh.pentatopes());
+  read_simplices(fid, mesh.pentatopes());
 
   GmfCloseMesh(fid);
 }

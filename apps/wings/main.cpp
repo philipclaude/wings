@@ -110,13 +110,17 @@ class LinearElementGroup : public BaseElementGroup {
   LinearElementGroup(const std::string& name, const Mesh& mesh, int group)
       : BaseElementGroup(name, mesh, group) {
     GL_CALL(glGenBuffers(1, &point_buffer_));
+    GL_CALL(glGenBuffers(1, &altitude_buffer_));
     GL_CALL(glGenBuffers(1, &aux_buffer_));
     GL_CALL(glGenTextures(1, &aux_texture_));
     write(nullptr);
   }
 
   ~LinearElementGroup() {
-    // TODO delete buffers
+    GL_CALL(glDeleteBuffers(1, &point_buffer_));
+    GL_CALL(glDeleteBuffers(1, &altitude_buffer_));
+    GL_CALL(glDeleteBuffers(1, &aux_buffer_));
+    GL_CALL(glDeleteTextures(1, &aux_texture_));
   }
 
   void write(const GLClipPlane* plane) {
@@ -124,10 +128,13 @@ class LinearElementGroup : public BaseElementGroup {
 
     int dim = mesh_.vertices().dim();
     const auto& topology = mesh_.get<T>();
+
     std::vector<GLfloat> points;
     points.reserve(topology.n() * 9 * VisualizationTriangles<T>::n);
     std::vector<GLuint> aux;
     aux.reserve(topology.n() * VisualizationTriangles<T>::n);
+    std::vector<GLfloat> altitude;
+    altitude.reserve(topology.n() * 3 * VisualizationTriangles<T>::n);
 
     vec3f center, normal;
     if (plane) {
@@ -159,6 +166,7 @@ class LinearElementGroup : public BaseElementGroup {
         if (T::dimension == 2 && side == -T::n_vertices) continue;
       }
 
+      std::array<vec3f, 3> triangle;
       for (int j = 0; j < VisualizationTriangles<T>::n; j++) {
         n_triangles_++;
         uint32_t aux_data = VisualizationTriangles<T>::edges[j] + (k << 3);
@@ -166,20 +174,36 @@ class LinearElementGroup : public BaseElementGroup {
         for (int i = 0; i < 3; i++) {
           auto vtx = topology(k, VisualizationTriangles<T>::triangles[j][i]);
           for (int d = 0; d < dim; d++) {
-            points.push_back(mesh_.vertices()[vtx][d]);
+            triangle[i][d] = mesh_.vertices()[vtx][d];
+            points.push_back(triangle[i][d]);
           }
           if (dim == 2) points.push_back(0.0);
         }
+
+        float a = length(triangle[2] - triangle[1]);
+        float b = length(triangle[0] - triangle[2]);
+        float c = length(triangle[1] - triangle[0]);
+        float s = 0.5 * (a + b + c);
+        float area = std::sqrt(s * (s - a) * (s - b) * (s - c));
+        altitude.push_back(2 * area / a);
+        altitude.push_back(2 * area / b);
+        altitude.push_back(2 * area / c);
       }
     }
-
     points.shrink_to_fit();
+    altitude.shrink_to_fit();
     aux.shrink_to_fit();
 
     // write the coordinates
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_));
     GL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * points.size(),
                          points.data(), GL_STATIC_DRAW));
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+
+    // write the altitudes
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, altitude_buffer_));
+    GL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * altitude.size(),
+                         altitude.data(), GL_STATIC_DRAW));
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
 
     // write aux data: edge visibility info and cell number
@@ -204,6 +228,11 @@ class LinearElementGroup : public BaseElementGroup {
     GL_CALL(glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0));
     GL_CALL(glEnableVertexAttribArray(0));
 
+    // enable the altitude attribute
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, altitude_buffer_));
+    GL_CALL(glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, 0));
+    GL_CALL(glEnableVertexAttribArray(1));
+
     // draw
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, point_buffer_));
     GL_CALL(glDrawArrays(GL_TRIANGLES, 0, 3 * n_triangles_));
@@ -212,6 +241,7 @@ class LinearElementGroup : public BaseElementGroup {
 
  private:
   GLuint point_buffer_;
+  GLuint altitude_buffer_;
   GLuint aux_buffer_;
   GLuint aux_texture_;
 };
@@ -503,7 +533,7 @@ class MeshScene : public wings::Scene {
       case wings::InputType::Scroll: {
         view.fov += 0.25 * (1 - input.fvalue);
         if (view.fov < 0.01) view.fov = 0.01;
-        if (view.fov > 2 * M_PI) view.fov = 2 * M_PI;
+        if (view.fov > 3.0f) view.fov = 3.0f;
         view.projection_matrix = glm::perspective(
             view.fov, float(view.canvas.width) / float(view.canvas.height),
             view.near, view.far);
@@ -524,7 +554,6 @@ class MeshScene : public wings::Scene {
     glDisable(GL_CULL_FACE);
     glEnable(GL_PROGRAM_POINT_SIZE);
     glEnable(GL_POLYGON_SMOOTH);
-    // glDepthMask(GL_TRUE);
     glEnable(GL_POLYGON_OFFSET_FILL);
     glPolygonOffset(1, 1);
     glEnable(GL_BLEND);
@@ -576,6 +605,9 @@ class MeshScene : public wings::Scene {
       shader.set_uniform("u_umin", 0.0f);
       shader.set_uniform("u_umax", 1.0f);
 
+      shader.set_uniform("u_PixelScale", float(0.5 * view.canvas.height) /
+                                             std::tan(view.fov / 2));
+
       if (view.picked) {
         // if (view.picked->name == primitive.title()) {
         //   shader.set_uniform("u_picking", int(view.picked->index));
@@ -598,34 +630,17 @@ class MeshScene : public wings::Scene {
     // set up the view
     view_.emplace_back();
     ClientView& view = view_.back();
-    view.eye = {0, 0, 0};
+
+    view.eye = {0, 0, 5};
     view.center = {0, 0, 0};
-    vec3f xmin{1e20f, 1e20f, 1e20f}, xmax{-1e20f, -1e20f, -1e20f};
-    for (size_t i = 0; i < mesh_.vertices().n(); i++) {
-      for (int d = 0; d < 3; d++) {
-        float x = mesh_.vertices()(i, d);
-        view.center[d] += x;
-        if (x > xmax[d]) xmax[d] = x;
-        if (x < xmin[d]) xmin[d] = x;
-      }
-    }
-    aabb_.min = xmin;
-    aabb_.max = xmax;
-    view.center = view.center / (1.0f * mesh_.vertices().n());
+    view.size = 1.0;
+
     view.center_translation.eye();
     view.inverse_center_translation.eye();
     for (int d = 0; d < 3; d++) {
       view.center_translation(d, 3) = view.center[d];
       view.inverse_center_translation(d, 3) = -view.center[d];
     }
-
-    vec3f scale = aabb_.max - aabb_.min;
-    view.size = std::max(std::max(scale[0], scale[1]), scale[2]);
-    float d = scale[2] / 2.0 + scale[0] / (2.0 * tan(view.fov / 2.0));
-
-    vec3f dir{0, 0, 1};
-    view.eye = view.center + 1.05f * d * dir;
-    view.center = view.eye - 2.1f * d * dir;
 
     view.model_matrix.eye();
     vec3f up{0, 1, 0};
@@ -640,15 +655,16 @@ class MeshScene : public wings::Scene {
     // thread so we need to create a vertex array upon each client connection.
     GL_CALL(glGenVertexArrays(1, &view.vertex_array));
     view.plane.initialize();
-    view.plane.define(aabb_);
+    AABB aabb;
+    aabb.min = {-1, -1, -1};
+    aabb.max = {1, 1, 1};
+    view.plane.define(aabb);
     view.field_mode = 0;
   }
 
  private:
   const Mesh& mesh_;
-
   std::vector<ClientView> view_;
-  AABB aabb_;
 
   GLuint colormap_texture_;
   GLuint colormap_buffer_;
@@ -685,7 +701,7 @@ int main(int argc, const char** argv) {
   read_mesh(argv[1], mesh);
 
   // calculate bounding box
-  wings::vec3f xmin{1e20, 1e20, 1e20}, xmax = -1.0f * xmin;
+  wings::vec4f xmin{1e20, 1e20, 1e20, 1e20}, xmax = -1.0f * xmin;
   for (size_t k = 0; k < mesh.vertices().n(); k++) {
     for (int d = 0; d < mesh.vertices().dim(); d++) {
       auto x = mesh.vertices()[k][d];
@@ -696,12 +712,12 @@ int main(int argc, const char** argv) {
 
   // scale and center vertices
   float lmax = xmax[0] - xmin[0];
-  for (int d = 1; d < 3; d++) {
+  for (int d = 1; d < mesh.vertices().dim(); d++) {
     lmax = std::max(lmax, xmax[d] - xmin[d]);
   }
-  wings::vec3f center = 0.5f * (xmin + xmax);
+  wings::vec4f center = 0.5f * (xmin + xmax);
   for (size_t k = 0; k < mesh.vertices().n(); k++) {
-    for (int d = 0; d < 3; d++) {
+    for (int d = 0; d < mesh.vertices().dim(); d++) {
       auto x = mesh.vertices()[k][d];
       mesh.vertices()[k][d] = 2.0 * (x - center[d]) / lmax;
     }
