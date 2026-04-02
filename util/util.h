@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2026 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -17,21 +17,91 @@
 //
 #pragma once
 
+#include <fmt/format.h>
+
 #include <memory>
 #include <vector>
 
 #include "glm.h"
+#include "log.h"
 
 namespace wings {
 
 class Vertices;
-template <typename T> class Topology;
+template <typename T>
+class Topology;
 class ShaderProgram;
 
-struct AABB {
+struct Ray {
+  Ray(vec3f p, vec3f r) {
+    origin = p;
+    direction = unit_vector(r);
+  }
+
+  void transform(const mat4f& m) {
+    vec4f dh = {direction[0], direction[1], direction[2], 0};
+    direction = unit_vector((m * dh).xyz());
+    vec4f oh = {origin[0], origin[1], origin[2], 1};
+    origin = (m * oh).xyz();
+  }
+  vec3f origin;
+  vec3f direction;
+};
+
+class AABB {
+ public:
   AABB() {}
-  vec3f min{1e20f, 1e20f, 1e20f};
-  vec3f max{-1e20f, -1e20f, -1e20f};
+  AABB(const vec3f& min, const vec3f& max) {
+    min_ = min;
+    max_ = max;
+    for (int d = 0; d < 3; d++) {
+      if (max_[d] - min_[d] < 1e-4f) {
+        min_[d] -= 1e-4f;
+        max_[d] += 1e-4f;
+      }
+    }
+  }
+
+  AABB(const AABB& boxl, const AABB& boxr) {
+    for (int d = 0; d < 3; d++) {
+      min_[d] = std::min(boxl.min()[d], boxr.min()[d]);
+      max_[d] = std::max(boxl.max()[d], boxr.max()[d]);
+      if (max_[d] - min_[d] < 1e-4f) {
+        min_[d] -= 1e-4f;
+        max_[d] += 1e-4f;
+      }
+    }
+  }
+
+  bool intersect(const Ray& ray, float tmin, float tmax) {
+    for (int d = 0; d < 3; ++d) {
+      float inv_d = 1.0f / ray.direction[d];
+      if (ray.direction[d] == 0.0) continue;
+      const auto tld = std::min((min_[d] - ray.origin[d]) * inv_d,
+                                (max_[d] - ray.origin[d]) * inv_d);
+      const auto tud = std::max((min_[d] - ray.origin[d]) * inv_d,
+                                (max_[d] - ray.origin[d]) * inv_d);
+      tmin = std::max(tld, tmin);
+      tmax = std::min(tud, tmax);
+      if (tmax <= tmin) return false;
+    }
+    return true;
+  }
+
+  void print() const {
+    LOGF("Box: {}, {}, {} -> {}, {}, {}", min_[0], min_[1], min_[2], max_[0],
+         max_[1], max_[2]);
+  }
+
+  const vec3f& min() const { return min_; }
+  const vec3f& max() const { return max_; }
+
+  vec3f& min() { return min_; }
+  vec3f& max() { return max_; }
+
+ private:
+  vec3f min_;
+  vec3f max_;
 };
 
 struct GLClipPlane;

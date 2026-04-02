@@ -1,23 +1,28 @@
-#version 330
+#version 410
 
 layout(location = 0) out vec4 fragColor;
 
 in vec3 v_Position;
 in vec3 v_Barycentric;
+flat in vec3 v_Normal;
+noperspective in vec3 v_Altitude;
+
 flat in int v_TriangleID;
-flat in vec3 v_EdgeVisibility;
 flat in int v_CellNumber;
-in vec3 v_Altitude;
+flat in int v_Group;
 
 uniform sampler2D image;
 uniform samplerBuffer colormap;
 uniform samplerBuffer field;
+uniform isamplerBuffer hidden;
 
-uniform float u_PixelScale;
 uniform int u_lighting;
 uniform int u_field_mode;
 uniform int u_edges;
 uniform float u_alpha;
+uniform int u_selected_group;
+uniform int u_selected_cell;
+uniform vec3 u_group_palette[12];
 
 uniform int u_group;
 uniform int u_min_group;
@@ -36,7 +41,7 @@ vec3 get_color(float u, float umin, float umax) {
 }
 
 vec3 shading(in vec3 l, in vec3 n, in vec3 color) {
-  float ambient = 0.2;
+  float ambient = 1 - u_lighting;
   float diffuse = u_lighting * abs(dot(l, n));
   float specular = u_lighting * pow(max(0.0, dot(-reflect(l, n), l)), 128.0);
   return color * (ambient + diffuse + specular);
@@ -50,26 +55,22 @@ uint hash(uint x) {
 
 void main() {
 
+  if (v_Group >= 0) {
+    int h = texelFetch(hidden, v_Group).r;
+    if (h == 1) discard;
+  }
+
   float alpha = u_alpha;
 
   vec3 position = normalize(v_Position);
-  vec3 tx = dFdx(v_Position);
-  vec3 ty = dFdy(v_Position);
-  vec3 normal = normalize(cross(tx, ty));
+  vec3 normal = normalize(v_Normal);
 
-  // vec3 barycentric = clamp(v_Barycentric, 0, 1);
-  // vec3 altitude = mix(vec3(1.0), barycentric, v_EdgeVisibility);
-  // float d = min(min(altitude.x, altitude.y), altitude.z);
-  // float w = clamp(fwidth(d), 0.0001, 0.1);
-  // float intensity = u_edges * (1.0 - smoothstep(0, 2 * w, d));
+  float d = min(min(v_Altitude.x, v_Altitude.y), v_Altitude.z);
+  float intensity = u_edges * (1.0 - smoothstep(0.0, 2.0, d));
 
-  vec3 altitude = mix(vec3(1e10), v_Altitude, v_EdgeVisibility);
-  float d = min(min(altitude[0], altitude[1]), altitude[2]);
-  float intensity = 1.0 - smoothstep(0, 2, d * u_PixelScale * gl_FragCoord.w);
-
-  vec3 color_constant = vec3(0.8);
+  vec3 color_constant = vec3(0.9);
   vec3 color_field = color_constant;
-  vec3 color_group = get_color(u_group, u_min_group, u_max_group);
+  vec3 color_group = u_group_palette[v_Group % 12];
   vec3 color_cell = get_color(int(hash(uint(v_CellNumber)) % uint(u_max_cell + 1)), 0, u_max_cell);
 
   /*
@@ -118,7 +119,12 @@ void main() {
 
   vec3 color = m_constant * color_constant + m_group * color_group + m_cell * color_cell + m_field * color_field;
 
+  if (v_Group == u_selected_group && v_CellNumber == u_selected_cell) {
+    color = vec3(0, 0, 1);
+    intensity = 0;
+    alpha = 0.5;
+  }
   color = shading(-position, normal, color);
 
-  fragColor = intensity * vec4(0, 0, 0, 1) + (1.0 - intensity) * vec4(color, u_alpha);
+  fragColor = intensity * vec4(0, 0, 0, 1) + (1.0 - intensity) * vec4(color, alpha);
 }

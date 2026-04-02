@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2026 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -775,6 +775,14 @@ float color_giraffe[256 * 3] = {
     0.431373, 0.152941, 0.0235294,  0.423529, 0.14902,  0.0235294,
     0.419608, 0.14902,  0.0235294,  0.411765, 0.14902,  0.0235294,
     0.407843, 0.145098, 0.0235294,  0.4,      0.145098, 0.0235294};
+
+// orange-red, blue, green, rose, amber, violet, teal, red, steel blue, tan,
+// olive, purple
+float color_groups[12 * 3] = {
+    0.878, 0.361, 0.165, 0.267, 0.533, 0.867, 0.239, 0.741, 0.416,
+    0.800, 0.200, 0.467, 0.867, 0.667, 0.133, 0.467, 0.333, 0.800,
+    0.133, 0.667, 0.667, 0.867, 0.333, 0.333, 0.333, 0.600, 0.667,
+    0.667, 0.467, 0.200, 0.533, 0.667, 0.200, 0.667, 0.267, 0.667};
 
 }  // namespace colormaps
 

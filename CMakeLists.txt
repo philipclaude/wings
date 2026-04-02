@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "-O3 -fPIC -Wall -Wextra")
 set(CMAKE_C_FLAGS "-O3 -fPIC -Wall")
-#set(CMAKE_CXX_FLAGS "-O0 -fsanitize=address")
+set(CMAKE_CXX_FLAGS "-O3 -fsanitize=address")
 
 # setup binary and lib directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -79,10 +79,10 @@ set(WINGS_EXTERNAL_LIBRARIES ${LIBRARIES} ${external_libraries})
 
 include_directories(${WINGS_STB_LOCATION})
 
-
 if (${WINGS_BUILD_UTIL})
 	# add all the source files
 	set(SOURCES
+	util/bvh.cpp
 	util/field.cpp
 	util/log.cpp
 	util/mesh.cpp
@@ -123,9 +123,9 @@ if (${WINGS_BUILD_APPS})
 	set_property(TARGET xwing PROPERTY CXX_STANDARD 14)
 
 	# vwing
-	add_executable(vwing apps/vwing/main.cpp)
-	target_link_libraries(vwing wings_util_static wings_io_src wings dl)
-	target_compile_definitions(vwing PUBLIC -DWINGS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+	#add_executable(vwing apps/vwing/main.cpp)
+	#target_link_libraries(vwing wings_util_static wings_io_src wings dl)
+	#target_compile_definitions(vwing PUBLIC -DWINGS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 	# wings main program
 	add_executable(wings_exe apps/wings/main.cpp)

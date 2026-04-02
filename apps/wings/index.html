@@ -17,7 +17,7 @@
 //  limitations under the License.
 //
 -->
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -32,10 +32,11 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/solid.min.css"
       rel="stylesheet"
     />
-    <link rel=icon
-    href=https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15/svgs/solid/paper-plane.svg>
+    <link
+      rel="icon"
+      href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15/svgs/solid/paper-plane.svg"
+    />
 
-    <!--<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>-->
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
       rel="stylesheet"
@@ -79,24 +80,7 @@
     <div id="wrapper">
       <!-- page content -->
       <div class="avoid-nav" id="page-content-wrapper">
-        <div
-          class="btn btn-primary"
-          style="
-            width: 100%;
-            height: 40px;
-            background-color: black;
-            color: white;
-            border-color: black;
-            border-radius: 0px;
-          "
-          onclick="connect();"
-        >
-          wings
-        </div>
-
-        <hr />
-
-        <div class="container-fluid">
+        <div class="container-fluid" style="margin-top: 10px">
           <div class="" style="display: inline-block">
             <button
               class="float-right btn btn-primary"
@@ -110,7 +94,7 @@
           <div style="display: inline-block">
             <input
               class="btn btn-light"
-              onchange="setHeight();"
+              onchange="setHeight()"
               style="width: 100px; color: black"
               id="input-height"
               type="number"
@@ -122,7 +106,7 @@
             &nbsp;&nbsp;
           </div>
           <div style="display: inline-block">
-            <select class="form-select" id="clip-dropdown" oninput="clip();">
+            <select class="form-select" id="clip-dropdown" oninput="clip()">
               <option>[Clip]</option>
               <option>X+</option>
               <option>Y+</option>
@@ -146,7 +130,7 @@
               style="width: 125px; display: block"
               type="range"
               id="clip-distance"
-              oninput="clip();"
+              oninput="clip()"
               value="0"
               min="-100"
               max="100"
@@ -159,11 +143,9 @@
               id="checkbox-plane"
               type="checkbox"
               checked
-              onchange="clip();"
+              onchange="clip()"
             />
-            <label class="form-check-label" for="checkbox-plane"
-              >Show</label
-            >
+            <label class="form-check-label" for="checkbox-plane">Show</label>
           </div>
           &nbsp;&nbsp;
           <div class="" style="display: inline-block">
@@ -176,11 +158,46 @@
             </button>
           </div>
           &nbsp;&nbsp;
+          <div
+            class="form-check"
+            style="display: inline-block; vertical-align: bottom"
+          >
+            <center>
+              <label class="form-check-label" for="clip-hyperplane"
+                >Hyperplane</label
+              >
+            </center>
+            <input
+              class="form-range"
+              style="width: 125px; display: block"
+              type="range"
+              id="clip-hyperplane"
+              oninput="moveHyperplane()"
+              value="0"
+              min="-100"
+              max="100"
+            />
+          </div>
+          &nbsp;&nbsp;
+          <div style="display: inline-block">
+            <select
+              class="form-select"
+              id="clip-direction"
+              onchange="changeClipDirection()"
+            >
+              <option>[Normal]</option>
+              <option>X</option>
+              <option>Y</option>
+              <option>Z</option>
+              <option selected>T</option>
+            </select>
+          </div>
+          &nbsp;&nbsp;
           <div style="display: inline-block">
             <select
               class="form-select"
               id="colormap-dropdown"
-              onchange="selectColormap();"
+              onchange="selectColormap()"
             >
               <option>[Colormap]</option>
               <option>blue-white-red</option>
@@ -196,7 +213,7 @@
             <button
               class="btn btn-primary"
               id="center-view"
-              onclick="centerView();"
+              onclick="centerView()"
             >
               Center
             </button>
@@ -208,7 +225,7 @@
               id="checkbox-nodes"
               type="checkbox"
               checked
-              onchange='togglePrimitive("checkbox-nodes", "n");'
+              onchange="togglePrimitive('checkbox-nodes', 'n')"
             />
             <label class="form-check-label" for="checkbox-nodes">Nodes</label>
           </div>
@@ -217,7 +234,7 @@
               class="form-check-input"
               id="checkbox-edges"
               type="checkbox"
-              onchange='togglePrimitive("checkbox-edges", "e");'
+              onchange="togglePrimitive('checkbox-edges', 'e')"
             />
             <label class="form-check-label" for="checkbox-edges">Lines</label>
           </div>
@@ -227,7 +244,7 @@
               id="checkbox-wireframe"
               type="checkbox"
               checked
-              onchange='togglePrimitive("checkbox-wireframe", "w");'
+              onchange="togglePrimitive('checkbox-wireframe', 'w')"
             />
             <label class="form-check-label" for="checkbox-wireframe"
               >Edges</label
@@ -239,7 +256,7 @@
               id="checkbox-triangles"
               type="checkbox"
               checked
-              onchange='togglePrimitive("checkbox-triangles", "t");'
+              onchange="togglePrimitive('checkbox-triangles', 't')"
             />
             <label class="form-check-label" for="checkbox-triangles"
               >Triangles</label
@@ -251,7 +268,7 @@
               id="checkbox-quads"
               type="checkbox"
               checked
-              onchange='togglePrimitive("checkbox-quads", "q");'
+              onchange="togglePrimitive('checkbox-quads', 'q')"
             />
             <label class="form-check-label" for="checkbox-quads">Quads</label>
           </div>
@@ -260,7 +277,8 @@
               class="form-check-input"
               id="checkbox-tetrahedra"
               type="checkbox"
-              onchange='togglePrimitive("checkbox-tetrahedra", "T");'
+              checked
+              onchange="togglePrimitive('checkbox-tetrahedra', 'T')"
             />
             <label class="form-check-label" for="checkbox-tetrahedra"
               >Tetrahedra</label
@@ -271,7 +289,7 @@
               class="form-check-input"
               id="checkbox-prisms"
               type="checkbox"
-              onchange='togglePrimitive("checkbox-prisms", "y");'
+              onchange="togglePrimitive('checkbox-prisms', 'y')"
             />
             <label class="form-check-label" for="checkbox-prisms">Prisms</label>
           </div>
@@ -280,7 +298,7 @@
               class="form-check-input"
               id="checkbox-pyramids"
               type="checkbox"
-              onchange='togglePrimitive("checkbox-pyramids", "Y");'
+              onchange="togglePrimitive('checkbox-pyramids', 'Y')"
             />
             <label class="form-check-label" for="checkbox-pyramids"
               >Pyramids</label
@@ -292,7 +310,7 @@
               id="checkbox-polygons"
               type="checkbox"
               checked
-              onchange='togglePrimitive("checkbox-polygons", "p");'
+              onchange="togglePrimitive('checkbox-polygons', 'p')"
             />
             <label class="form-check-label" for="checkbox-polygons"
               >Polygons</label
@@ -303,7 +321,7 @@
               class="form-check-input"
               id="checkbox-polyhedra"
               type="checkbox"
-              onchange='togglePrimitive("checkbox-polyhedra", "P");'
+              onchange="togglePrimitive('checkbox-polyhedra', 'P')"
             />
             <label class="form-check-label" for="checkbox-polyhedra"
               >Polyhedra</label
@@ -314,7 +332,7 @@
               class="form-check-input"
               id="checkbox-points"
               type="checkbox"
-              onchange='togglePrimitive("checkbox-points", "v");'
+              onchange="togglePrimitive('checkbox-points', 'v')"
             />
             <label class="form-check-label" for="checkbox-points">Points</label>
           </div>
@@ -324,7 +342,7 @@
               id="checkbox-lighting"
               type="checkbox"
               checked
-              onchange="toggleLighting();"
+              onchange="toggleLighting()"
             />
             <label class="form-check-label" for="checkbox-lighting"
               >Lighting</label
@@ -343,42 +361,6 @@
             >
           </div>
           <div class="form-check" style="display: inline-block">
-            <label class="form-check-label" id="size-label"></label>
-          </div>
-          <br />
-          <hr />
-          <div class="form-check" style="display: inline-block">
-            <label class="form-check-label" for="qualitys"
-              >Static Quality</label
-            >
-            <input
-              class="form-range"
-              style="display: block; width: 125px"
-              id="qualitys"
-              type="range"
-              min="5"
-              max="100"
-              step="5"
-              value="100"
-              onchange="setQuality()"
-            />
-          </div>
-          <div class="form-check" style="display: inline-block">
-            <label class="form-check-label" for="qualityd"
-              >Dynamic Quality</label
-            >
-            <input
-              class="form-range"
-              style="display: block; width: 125px"
-              id="qualityd"
-              type="range"
-              min="5"
-              max="100"
-              step="5"
-              value="80"
-            />
-          </div>
-          <div class="form-check" style="display: inline-block">
             <label class="form-check-label" for="transparency"
               >Transparency</label
             >
@@ -394,8 +376,47 @@
               onchange="setTransparency()"
             />
           </div>
-          <div style="display: inline-block">
-            <textarea id="message-area" style="width: 500px"> </textarea>
+          <div class="form-check" style="display: inline-block">
+            <label class="form-check-label" id="size-label"></label>
+          </div>
+          <br />
+          <div class="form-check" style="display: inline-block" hidden>
+            <label class="form-check-label" for="qualitys"
+              >Static Quality</label
+            >
+            <input
+              class="form-range"
+              style="display: block; width: 125px"
+              id="qualitys"
+              type="range"
+              min="5"
+              max="100"
+              step="5"
+              value="100"
+              onchange="setQuality()"
+            />
+          </div>
+          <div class="form-check" style="display: inline-block" hidden>
+            <label class="form-check-label" for="qualityd"
+              >Dynamic Quality</label
+            >
+            <input
+              class="form-range"
+              style="display: block; width: 125px"
+              id="qualityd"
+              type="range"
+              min="5"
+              max="100"
+              step="5"
+              value="80"
+            />
+          </div>
+          <hr />
+          <div>
+            <details>
+              <summary>Message Log</summary>
+              <textarea id="message-area" style="width: 100%"></textarea>
+            </details>
           </div>
           <hr />
           <div style="width: 100%; position: relative">
@@ -406,24 +427,8 @@
               height="600"
               style="width: inherit; border-radius: 4px"
             />
+            <hr />
           </div>
-          <br />
-          <hr />
-          <b>Instructions:</b>
-          <ul>
-            <li>Click and drag the mouse to rotate.</li>
-            <li>
-              Hold <code>shift</code>, click and drag the mouse to translate.
-            </li>
-            <li>Scroll to zoom in or out.</li>
-            <li>Press the <code>f</code> key to cycle through the fields.</li>
-            <li>Double-click an element to highlight it.</li>
-            <li>
-              Press the <code>c</code> key to center the view on a highlighted
-              element.
-            </li>
-            <li>Not currently implemented: transparency, export.</li>
-          </ul>
         </div>
       </div>
     </div>
@@ -432,7 +437,7 @@
   <script>
     let ws;
     let img = document.getElementById("image");
-    let connect = function (url) {
+    let connect = (url) => {
       let url_default = "ws://localhost:{WEBSOCKET_PORT}";
       if (window.location.protocol == "file:")
         url_default = "ws://localhost:7681";
@@ -444,17 +449,16 @@
         : window["WebSocket"];
 
       ws = new websocket(url);
-      ws.onopen = function (e) {
-        console.log("Opened websocket connection.");
+      ws.onopen = (e) => {
+        logMessage("Opened websocket connection.");
         window.onresize();
       };
-      ws.onclose = function (evt) {
-        console.log("Closed connection.");
+      ws.onclose = (evt) => {
+        logMessage("Closed connection.");
       };
       ws.onmessage = async (evt) => {
         if (evt.data[0] == "*") {
-          document.getElementById("message-area").innerHTML =
-            evt.data.substring(1);
+          logMessage(evt.data.substring(1));
           return;
         }
 
@@ -465,72 +469,89 @@
       };
     };
 
+    const getFormattedTime = () => {
+      const now = new Date();
+      const hours = now.getHours().toString().padStart(2, "0");
+      const minutes = now.getMinutes().toString().padStart(2, "0");
+      const seconds = now.getSeconds().toString().padStart(2, "0");
+      return `${hours}:${minutes}:${seconds}`;
+    };
+
+    let nMessages = 0;
+    const logMessage = (msg) => {
+      nMessages++;
+      document.getElementById("message-area").innerHTML +=
+        `[${nMessages}] ${getFormattedTime()}: ${msg}\n`;
+    };
+
+    let picking = false;
     let dragging = false;
-    let scrolling = undefined,
-      scrolling_timeout;
-    let quality0 = document.getElementById("qualitys").value;
-    let ctrlKey = false;
-    let shiftKey = false;
-    img.addEventListener("mousedown", function (e) {
+    img.addEventListener("mousedown", (e) => {
       e.preventDefault();
-      quality0 = document.getElementById("qualitys").value;
-      document.getElementById("qualitys").value =
-        document.getElementById("qualityd").value;
-      setQuality();
       dragging = true;
+      if (picking) {
+        const scaleX = img.naturalWidth / img.clientWidth;
+        const scaleY = img.naturalHeight / img.clientHeight;
+        const x = ("0000" + Math.round(e.offsetX * scaleX)).slice(-5);
+        const y = ("0000" + Math.round(e.offsetY * scaleY)).slice(-5);
+        const msg = "D" + x + y;
+        ws.send(msg);
+      }
     });
 
-    img.addEventListener("mouseup", function (e) {
+    img.addEventListener("mouseup", (e) => {
       e.preventDefault();
       dragging = false;
-      document.getElementById("qualitys").value = quality0;
-      setQuality();
     });
 
-    img.addEventListener("mousemove", function (e) {
-      const mod = e.ctrlKey || e.shiftKey;
-      const x = ("0000" + e.clientX).slice(-5);
-      const y = ("0000" + e.clientY).slice(-5);
-      const msg = "M" + (dragging ? "D" : "d") + (mod ? "M" : "m") + x + y;
+    img.addEventListener("mousemove", (e) => {
+      const scaleX = img.naturalWidth / img.clientWidth;
+      const scaleY = img.naturalHeight / img.clientHeight;
+      const x = ("0000" + Math.round(e.offsetX * scaleX)).slice(-5);
+      const y = ("0000" + Math.round(e.offsetY * scaleY)).slice(-5);
+      const msg = "M" + (dragging ? "D" : "d") + "m" + x + y;
       ws.send(msg);
     });
 
-    img.addEventListener(
-      "wheel",
-      function (e) {
+    img.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const msg = "W" + (e.deltaY > 0 ? "-" : "+");
+      ws.send(msg);
+    });
+
+    const SUPPRESSED_KEYS = new Set([
+      "ArrowUp",
+      "ArrowDown",
+      "ArrowLeft",
+      "ArrowRight",
+    ]);
+    window.addEventListener("keydown", (e) => {
+      if (SUPPRESSED_KEYS.has(e.key)) {
         e.preventDefault();
-        if (!scrolling) {
-          // initial scroll event
-          quality0 = document.getElementById("qualitys").value;
-          document.getElementById("qualitys").value =
-            document.getElementById("qualityd").value;
-          setQuality();
-          scrolling = true;
-          return;
-        }
-        window.clearTimeout(scrolling_timeout);
-        // set a timeout to run after scrolling ends
-        scrolling_timeout = setTimeout(function () {
-          document.getElementById("qualitys").value = quality0;
-          setQuality();
-          scrolling = false;
-        }, 60);
-        const msg = "W" + (e.deltaY > 0 ? "-" : "+");
-        ws.send(msg);
-      },
-      false
-    );
-
-    img.addEventListener("dblclick", function (e) {
-      const x = ("0000" + e.offsetX).slice(-5);
-      const y = ("0000" + e.offsetY).slice(-5);
-      const msg = "D" + x + y;
-      ws.send(msg);
+        if (e.key == "ArrowLeft") ws.send("KSTx");
+        if (e.key == "ArrowRight") ws.send("KStx");
+        if (e.key == "ArrowDown") ws.send("KSTy");
+        if (e.key == "ArrowUp") ws.send("KSty");
+      }
+      if (e.key == "f") ws.send("KSf");
+      if (e.key == "c") centerView();
+      if (e.key == "s") ws.send("KSs");
+      if (e.key == "S") ws.send("KSS");
+      if (e.key == "h") ws.send("KSh");
+      if (e.key == "p") ws.send("KSp");
+      if (e.key == "z") ws.send("W-");
+      if (e.key == "Z") ws.send("W+");
+      if (e.key === "Shift") {
+        document.body.style.cursor = "crosshair";
+        picking = true;
+      }
     });
 
-    window.addEventListener("keydown", function (e) {
-      if (e.key == "f") toggleField();
-      if (e.key == "c") centerView();
+    window.addEventListener("keyup", function (e) {
+      if (e.key === "Shift") {
+        document.body.style.cursor = "";
+        picking = false;
+      }
     });
 
     const setQuality = () => {
@@ -542,7 +563,7 @@
     };
 
     let timeout;
-    window.onresize = function () {
+    window.onresize = () => {
       clearTimeout(timeout);
       timeout = setTimeout(() => {
         const w = 4 * Math.floor(window.innerWidth / 4);
@@ -562,10 +583,14 @@
       ws.send("KI" + c + checkboxResult(id));
     };
 
+    const toggleLighting = () => {
+      ws.send("KIL" + checkboxResult("checkbox-lighting"));
+    };
+
     const selectColormap = () => {
       const dropdown = document.getElementById("colormap-dropdown");
       let idx = dropdown.selectedIndex;
-      if (idx == 0) idx = 8; // default to giraffe colormap
+      if (idx == 0) idx = 8; // default colormap
       ws.send("KSC" + dropdown.options[idx].value);
     };
 
@@ -581,12 +606,18 @@
       ws.send("KSx0");
     };
 
-    const centerView = () => {
-      ws.send("KSp");
+    const moveHyperplane = () => {
+      const distance = document.getElementById("clip-hyperplane").value;
+      ws.send("KSH" + distance);
     };
 
-    const toggleField = () => {
-      ws.send("KSf");
+    const changeClipDirection = () => {
+      const d = document.getElementById("clip-direction").selectedIndex;
+      ws.send("KID" + d);
+    };
+
+    const centerView = () => {
+      ws.send("KSp");
     };
 
     const setHeight = () => {

@@ -145,6 +145,12 @@ void ShaderProgram::use() const {
 }
 
 template <>
+void ShaderProgram::set_uniform(const char* name, const vec4f& v) const {
+  GLint location = glGetUniformLocation(handle_, name);
+  if (location >= 0) GL_CALL(glUniform4f(location, v[0], v[1], v[2], v[3]));
+}
+
+template <>
 void ShaderProgram::set_uniform(const char* name, const vec3f& v) const {
   GLint location = glGetUniformLocation(handle_, name);
   if (location >= 0) GL_CALL(glUniform3f(location, v[0], v[1], v[2]));
