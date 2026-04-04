@@ -32,17 +32,6 @@
 
 namespace wings {
 
-wings::mat4f get_basis_projector(int d) {
-  wings::mat4f p;
-  int row = 0;
-  for (int i = 0; i < 4; i++) {
-    if (i == d) continue;
-    p(row, i) = 1;
-    row++;
-  }
-  return p;
-}
-
 enum TextureIndex {
   POINT_TEXTURE = 0,
   NORMAL_TEXTURE = 1,
@@ -81,7 +70,7 @@ struct ClientView {
   int lighting{1};
   bool culling{false};
   GLClipPlane plane;
-  const BVHTriangle* picked{nullptr};
+  const BVHLeafBase* picked{nullptr};
   int field_mode{0};
   int field_index{0};
   glCanvas canvas{800, 600, true};
@@ -94,7 +83,7 @@ struct ClientView {
 class BasePrimitive {
  public:
   BasePrimitive(const std::string& name, const Mesh& mesh,
-                BoundingVolumeHierarchy& bvh)
+                BoundingVolumeHierarchyBase& bvh)
       : name_(name), mesh_(mesh), bvh_(bvh) {}
   virtual ~BasePrimitive() {}
   virtual void draw(ShaderProgram&, const ClientView&) const = 0;
@@ -116,7 +105,7 @@ class BasePrimitive {
   int n_cells_{0};
   int n_triangles_{0};
   int max_cell_{-1};
-  BoundingVolumeHierarchy& bvh_;
+  BoundingVolumeHierarchyBase& bvh_;
 };
 
 template <typename T>
@@ -187,7 +176,7 @@ template <typename T>
 class LinearPrimitive4d : public BasePrimitive {
  public:
   LinearPrimitive4d(PointTexture& points, const std::string& name,
-                    const Mesh& mesh, BoundingVolumeHierarchy& bvh)
+                    const Mesh& mesh, BoundingVolumeHierarchyBase& bvh)
       : BasePrimitive(name, mesh, bvh), points_(points) {
     write(mesh.get<T>());
   }
@@ -246,7 +235,7 @@ template <typename T>
 class LinearPrimitive3d : public BasePrimitive {
  public:
   LinearPrimitive3d(const std::string& name, const Mesh& mesh,
-                    BoundingVolumeHierarchy& bvh)
+                    BoundingVolumeHierarchyBase& bvh)
       : BasePrimitive(name, mesh, bvh) {
     GL_CALL(glGenBuffers(1, &point_buffer_));
     GL_CALL(glGenTextures(1, &point_texture_));
@@ -271,6 +260,8 @@ class LinearPrimitive3d : public BasePrimitive {
 
     int dim = mesh_.vertices().dim();
     const auto& topology = mesh_.get<T>();
+
+    auto& bvh = static_cast<BoundingVolumeHierarchy<BVHTriangle>&>(bvh_);
 
     std::vector<GLfloat> points;
     points.reserve(topology.n() * 9 * VisualizationTriangles<T>::n);
@@ -320,7 +311,7 @@ class LinearPrimitive3d : public BasePrimitive {
           }
           if (dim == 2) points.push_back(0.0);
         }
-        bvh_.add(triangle[0], triangle[1], triangle[2], k, topology.group(k));
+        bvh.add(triangle, k, topology.group(k));
       }
     }
     points.shrink_to_fit();
@@ -432,6 +423,23 @@ class MeshScene : public wings::Scene {
   void write() {
     context_->make_context_current();
 
+    if (mesh_.vertices().dim() == 3)
+      bvh_ = std::make_unique<BoundingVolumeHierarchy<BVHTriangle>>();
+    else if (mesh_.vertices().dim() == 4) {
+      bvh_ = std::make_unique<BoundingVolumeHierarchy<BVHTet>>();
+      auto* bvh_4d = static_cast<BoundingVolumeHierarchy<BVHTet>*>(bvh_.get());
+      for (size_t k = 0; k < mesh_.tetrahedra().n(); k++) {
+        std::array<vec4f, 4> tet;
+        for (int j = 0; j < 4; j++) {
+          for (int d = 0; d < 4; d++)
+            tet[j][d] = mesh_.vertices()[mesh_.tetrahedra()(k, j)][d];
+        }
+        bvh_4d->add(tet, k, mesh_.tetrahedra().group(k));
+      }
+
+    } else
+      NOT_IMPLEMENTED;
+
     groups_.clear();
     auto add_topology = [&](const std::string& name, auto& topology) {
       using T = typename std::decay_t<decltype(topology)>::type;
@@ -443,10 +451,10 @@ class MeshScene : public wings::Scene {
       }
       if (mesh_.vertices().dim() <= 3) {
         primitives_.push_back(
-            std::make_unique<LinearPrimitive3d<T>>(name, mesh_, bvh_));
+            std::make_unique<LinearPrimitive3d<T>>(name, mesh_, *bvh_));
       } else {
-        primitives_.push_back(
-            std::make_unique<LinearPrimitive4d<T>>(points_, name, mesh_, bvh_));
+        primitives_.push_back(std::make_unique<LinearPrimitive4d<T>>(
+            points_, name, mesh_, *bvh_));
       }
     };
 
@@ -461,7 +469,7 @@ class MeshScene : public wings::Scene {
     LOGF("Found {} groups, min = {}, max = {}", groups_.size(), ming, maxg);
     hidden_.resize(maxg + 1, false);
 
-    bvh_.build();
+    bvh_->build();
     LOG << "Built BVH.";
 
     if (mesh_.vertices().dim() == 4) {
@@ -553,9 +561,9 @@ class MeshScene : public wings::Scene {
     float y = -h / 2 + h * (1 - (pixel_y + 0.5) / view.canvas.height);
 
     auto transformation = glm::inverse(view.view_matrix * view.model_matrix);
-    Ray ray({0, 0, 0}, {x, y, -1});
-    ray.transform(transformation);
-    return bvh_.intersect(ray, hidden_);
+    Ray<3> ray({0, 0, 0}, {x, y, -1}, transformation);
+    // ray.transform(transformation);
+    return bvh_->intersect(ray, hidden_);
   }
 
   bool render(const wings::ClientInput& input, int client_idx,
@@ -586,9 +594,9 @@ class MeshScene : public wings::Scene {
         } else if (view.hover_highlight) {
           if (view.hover_highlight) {
             auto ixn = raycast(view, input.x, input.y);
-            if (ixn.triangle) {
-              selected_group_ = ixn.triangle->group();
-              selected_cell_ = ixn.triangle->cell();
+            if (ixn.elem) {
+              selected_group_ = ixn.elem->group();
+              selected_cell_ = ixn.elem->cell();
               updated = true;
             } else {
               selected_group_ = -1;
@@ -602,14 +610,14 @@ class MeshScene : public wings::Scene {
       }
       case wings::InputType::DoubleClick: {
         auto ixn = raycast(view, input.x, input.y);
-        if (ixn.triangle) {
-          selected_group_ = ixn.triangle->group();
-          selected_cell_ = ixn.triangle->cell();
+        if (ixn.elem) {
+          selected_group_ = ixn.elem->group();
+          selected_cell_ = ixn.elem->cell();
           std::string info = fmt::format("*Picked cell {} in group {}",
-                                         ixn.triangle->cell(), selected_group_);
+                                         selected_cell_, selected_group_);
           LOG << info;
           *msg = info;
-          view.picked = ixn.triangle;
+          view.picked = ixn.elem;
           updated = true;
         } else {
           selected_group_ = -1;
@@ -692,9 +700,9 @@ class MeshScene : public wings::Scene {
           }
           updated = true;
         } else if (input.key == 'x') {
-          bvh_.clear();
+          bvh_->clear();
           for (auto& prim : primitives_) prim->write(&view.plane);
-          bvh_.build();
+          bvh_->build();
           updated = true;
         } else if (input.key == 'C') {  // colormap change
           change_colormap(input.svalue);
@@ -886,7 +894,7 @@ class MeshScene : public wings::Scene {
     // thread so we need to create a vertex array upon each client connection.
     GL_CALL(glGenVertexArrays(1, &view.vertex_array));
     view.plane.initialize();
-    AABB aabb;
+    AABB<3> aabb;
     aabb.min() = {-1, -1, -1};
     aabb.max() = {1, 1, 1};
     view.plane.define(aabb);
@@ -896,7 +904,6 @@ class MeshScene : public wings::Scene {
  private:
   const Mesh& mesh_;
   std::vector<ClientView> view_;
-  AABB aabb_;
   vec4f xmin_, xmax_;
   PointTexture points_;
 
@@ -908,7 +915,7 @@ class MeshScene : public wings::Scene {
   std::vector<std::unique_ptr<BasePrimitive>> primitives_;
   ShaderLibrary2 shaders_;
   std::set<int> groups_;  // total groups
-  BoundingVolumeHierarchy bvh_;
+  std::unique_ptr<BoundingVolumeHierarchyBase> bvh_;
   std::vector<bool> hidden_;
   std::vector<int> hidden_order_;
   int selected_group_{-1};

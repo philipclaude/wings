@@ -11,163 +11,206 @@
 
 namespace wings {
 
-class BVHTriangle {
+class BVHLeafBase {
  public:
-  BVHTriangle(vec3f a, vec3f b, vec3f c, uint32_t cell, int group)
-      : a_(a), b_(b), c_(c), cell_(cell), group_(group) {
-    vec3f min, max;
-    for (int d = 0; d < 3; d++) {
-      min[d] = std::min(std::min(a[d], b[d]), c[d]);
-      max[d] = std::max(std::max(a[d], b[d]), c[d]);
-    }
-    box_ = AABB(min, max);
-  }
-
-  float intersect(const Ray& ray, float tmin, float tmax) const {
-    // vec3d instead of vec3f for more precision
-    vec3d a = a_, b = b_, c = c_, d = ray.direction, o = ray.origin;
-    auto ab = b - a;
-    auto ac = c - a;
-    auto h = cross(d, ac);
-    double det = dot(ab, h);
-    if (std::fabs(det) < 1e-14) return -1;
-
-    auto s = o - a;
-    double u = dot(s, h) / det;
-    if (u < 0 || u > 1) return -1;
-
-    auto q = cross(s, ab);
-    double v = dot(d, q) / det;
-    if (v < 0 || u + v > 1) return -1;
-
-    double t = dot(ac, q) / det;
-    if (t < tmin || t > tmax) return -1;
-    return t;
-  }
-
-  const AABB& box() const { return box_; }
-
+  virtual ~BVHLeafBase() {}
   int group() const { return group_; }
   int cell() const { return cell_; }
+  virtual vec3f center() const = 0;
+
+ protected:
+  BVHLeafBase(int cell, int group) : cell_(cell), group_(group) {}
+  int cell_;
+  int group_;
+};
+
+static float intersect_ray_triangle(const Ray<3>& ray, const vec3d& a,
+                                    const vec3d& b, const vec3d& c, float tmin,
+                                    float tmax) {
+  // vec3d instead of vec3f for more precision
+  vec3d d = ray.direction, o = ray.origin;
+  auto ab = b - a;
+  auto ac = c - a;
+  auto h = cross(d, ac);
+  double det = dot(ab, h);
+  if (std::fabs(det) < 1e-14) return -1;
+
+  auto s = o - a;
+  double u = dot(s, h) / det;
+  if (u < 0 || u > 1) return -1;
+
+  auto q = cross(s, ab);
+  double v = dot(d, q) / det;
+  if (v < 0 || u + v > 1) return -1;
+
+  double t = dot(ac, q) / det;
+  if (t < tmin || t > tmax) return -1;
+  return t;
+}
+
+class BVHTriangle : public BVHLeafBase {
+ public:
+  static constexpr int N = 3;
+  static constexpr int dim = 3;
+  BVHTriangle(const std::array<vec3f, 3>& triangle, uint32_t cell, int group)
+      : BVHLeafBase(cell, group),
+        a_(triangle[0]),
+        b_(triangle[1]),
+        c_(triangle[2]) {
+    vec3f min, max;
+    for (int d = 0; d < 3; d++) {
+      min[d] = std::min(std::min(a_[d], b_[d]), c_[d]);
+      max[d] = std::max(std::max(a_[d], b_[d]), c_[d]);
+    }
+    box_ = AABB<3>(min, max);
+  }
+
+  float intersect(const Ray<3>& ray, float tmin, float tmax) const {
+    return intersect_ray_triangle(ray, a_, b_, c_, tmin, tmax);
+  }
+
+  const AABB<3>& box() const { return box_; }
 
   vec3f center() const { return (a_ + b_ + c_) / 3.0f; }
 
  private:
   vec3f a_, b_, c_;
-  AABB box_;
-  int cell_;
-  int group_;
+  AABB<3> box_;
+};
+
+class BVHTet : public BVHLeafBase {
+ public:
+  static constexpr int N = 4;
+  static constexpr int dim = 4;
+  BVHTet(const std::array<vec4f, 4>& tet, uint32_t cell, int group)
+      : BVHLeafBase(cell, group) {
+    vec4f min, max;
+    for (int d = 0; d < dim; d++) {
+      min[d] = std::min(std::min(std::min(tet[0][d], tet[1][d]), tet[2][d]),
+                        tet[3][d]);
+      max[d] = std::max(std::max(std::max(tet[0][d], tet[1][d]), tet[2][d]),
+                        tet[3][d]);
+    }
+    box_ = AABB<dim>(min, max);
+  }
+
+  float intersect(const Ray<4>& ray, float tmin, float tmax) const {
+    // determine which edges are intersected
+    return -1;  // intersect_ray_triangle(ray, a_, b_, c_, tmin, tmax);
+  }
+
+  const auto& box() const { return box_; }
+
+  vec3f center() const {
+    return {0, 0, 0};
+  }  //(a_ + b_ + c_ + d_).xyz() / 3.0f; }
+
+ private:
+  // vec4f a_, b_, c_, d_;
+  AABB<dim> box_;
 };
 
 struct Intersection {
   float t{-1};
-  const BVHTriangle* triangle{nullptr};
+  const BVHLeafBase* elem{nullptr};
 };
 
-class BVHNode {
+template <typename BVHLeaf>
+struct BVHNode {
+  static constexpr int dim = BVHLeaf::dim;
+  uint32_t left{0};
+  uint32_t right{0};
+  AABB<dim> box;
+};
+
+class BoundingVolumeHierarchyBase {
  public:
-  BVHNode(const BVHTriangle* triangle) : triangle_(triangle) {
-    box_ = triangle_->box();
+  virtual ~BoundingVolumeHierarchyBase() {}
+  template <int dim>
+  Intersection intersect(const Ray<dim>& ray, const std::vector<bool>& hidden);
+  virtual void build() = 0;
+  virtual void clear() = 0;
+};
+
+template <typename BVHLeaf>
+class BoundingVolumeHierarchy : public BoundingVolumeHierarchyBase {
+ public:
+  static constexpr int dim = BVHLeaf::dim;
+  using vecf = vec<dim, float>;
+  BoundingVolumeHierarchy() {}
+
+  void add(const std::array<vecf, BVHLeaf::N>& elem, uint32_t cell, int group) {
+    leaves_.emplace_back(elem, cell, group);
   }
-  BVHNode(std::vector<BVHTriangle>& objects, size_t m, size_t n) {
-    const int axis = std::floor(rand() * 3 / double(RAND_MAX));
+
+  void build() {
+    LOGF("Building BVH with {} leaves.", leaves_.size());
+    nodes_.clear();
+    nodes_.resize(2 * leaves_.size());
+    root_ = 0;
+    root_ = build(root_, 0, leaves_.size());
+    assert(root_ == 0);
+  }
+
+  int32_t build(size_t& i, size_t m, size_t n) {
+    int64_t n_objects = n - m;
+    if (n_objects == 0) return 0;
+    if (n_objects == 1) return -m - 1;
+
+    size_t mid = std::floor(0.5 * (m + n));
+    int axis = std::floor(rand() * dim / double(RAND_MAX));
     const auto compare = [axis](const auto& a, const auto& b) {
       return a.box().min()[axis] < b.box().min()[axis];
     };
-    int64_t n_objects = n - m;
-    if (n_objects == 0) {
-      return;
-    } else if (n_objects == 1) {
-      left_ = std::make_unique<BVHNode>(&objects[m]);
-      right_ = std::make_unique<BVHNode>(&objects[m]);
-      box_ = objects[m].box();
-      return;
-    } else if (n_objects == 2) {
-      if (compare(objects[m], objects[m + 1])) {
-        left_ = std::make_unique<BVHNode>(&objects[m]);
-        right_ = std::make_unique<BVHNode>(&objects[m + 1]);
-      } else {
-        left_ = std::make_unique<BVHNode>(&objects[m + 1]);
-        right_ = std::make_unique<BVHNode>(&objects[m]);
-      }
-    } else {
-      std::sort(objects.begin() + m, objects.begin() + n, compare);
-      const size_t mid = std::floor(0.5 * (m + n));
-      left_ = std::make_unique<BVHNode>(objects, m, mid);
-      right_ = std::make_unique<BVHNode>(objects, mid, n);
-    }
-    box_ = AABB(left_->box(), right_->box());
+    std::nth_element(leaves_.begin() + m, leaves_.begin() + mid,
+                     leaves_.begin() + n, compare);
+    size_t idx_m = i++;
+    auto l = build(i, m, mid);
+    auto r = build(i, mid, n);
+
+    nodes_[idx_m].left = l;
+    nodes_[idx_m].right = r;
+    nodes_[idx_m].box =
+        AABB<dim>(l < 0 ? leaves_[-l - 1].box() : nodes_[l].box,
+                  r < 0 ? leaves_[-r - 1].box() : nodes_[r].box);
+    return idx_m;
   }
 
-  Intersection intersect(const Ray& ray, float tmin, float tmax,
-                         const std::vector<bool>& hidden) {
-    if (!box_.intersect(ray, tmin, tmax)) return Intersection();
-    if (triangle_) {
-      auto group = triangle_->group();
-      if (group >= 0 && hidden[group]) return Intersection();
-      float t = triangle_->intersect(ray, tmin, tmax);
-      if (t < tmin || t > tmax) return Intersection();
-      return {t, triangle_};
-    }
+  void clear() {
+    nodes_.clear();
+    leaves_.clear();
+  }
 
-    auto ixnL = left_->intersect(ray, tmin, tmax, hidden);
+  Intersection intersect(const Ray<dim>& ray,
+                         const std::vector<bool>& hidden) const {
+    return intersect(root_, ray, 1e-6f, 10000.0f, hidden);
+  }
+
+  Intersection intersect(int32_t idx, const Ray<dim>& ray, float tmin,
+                         float tmax, const std::vector<bool>& hidden) const {
+    if (idx < 0) {
+      auto& leaf = leaves_[-idx - 1];
+      auto group = leaf.group();
+      if (group >= 0 && hidden[group]) return Intersection();
+      float t = leaf.intersect(ray, tmin, tmax);
+      if (t < tmin || t > tmax) return Intersection();
+      return {t, &leaf};
+    }
+    const auto& node = nodes_[idx];
+    if (!node.box.intersect(ray, tmin, tmax)) return Intersection();
+
+    auto ixnL = intersect(node.left, ray, tmin, tmax, hidden);
     auto ixnR =
-        right_->intersect(ray, tmin, ixnL.t > 0 ? ixnL.t : tmax, hidden);
+        intersect(node.right, ray, tmin, ixnL.t > 0 ? ixnL.t : tmax, hidden);
     if (ixnR.t > 0) return ixnR;
     if (ixnL.t > 0) return ixnL;
     return Intersection();
   }
 
-  const AABB& box() const { return box_; }
-
-  BVHNode* left() const { return left_.get(); }
-  BVHNode* right() const { return right_.get(); }
-
  private:
-  std::unique_ptr<BVHNode> left_;
-  std::unique_ptr<BVHNode> right_;
-  const BVHTriangle* triangle_{nullptr};
-  AABB box_;
-};
-
-class BoundingVolumeHierarchy {
- public:
-  BoundingVolumeHierarchy() {}
-
-  void add(vec3f a, vec3f b, vec3f c, uint32_t cell, int group) {
-    triangles_.emplace_back(a, b, c, cell, group);
-  }
-
-  void build() {
-    root_ = std::make_unique<BVHNode>(triangles_, 0, triangles_.size());
-  }
-
-  void clear() {
-    triangles_.clear();
-    root_ = nullptr;
-  }
-
-  Intersection intersect(const Ray& ray, const std::vector<bool>& hidden) {
-    if (!root_) return Intersection();
-    return root_->intersect(ray, 1e-6f, 10000.0f, hidden);
-#if 0
-    float tmin = 10000.0f;
-    const BVHTriangle* tri{nullptr};
-    for (const auto& triangle : triangles_) {
-      auto t = triangle.intersect(ray, 0, 10000.0f);
-      if (t > 0 && t < tmin) {
-        tmin = t;
-        tri = &triangle;
-      }
-    }
-    if (tmin < 100) return {tmin, tri};
-    return Intersection();
-#endif
-  }
-
- private:
-  std::unique_ptr<BVHNode> root_;
-  std::vector<BVHTriangle> triangles_;
+  size_t root_;
+  std::vector<BVHNode<BVHLeaf>> nodes_;
+  std::vector<BVHLeaf> leaves_;
 };
 
 }  // namespace wings

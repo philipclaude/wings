@@ -51,7 +51,7 @@ void GLClipPlane::initialize() {
   buffer = vbo;
 }
 
-void GLClipPlane::define(const AABB& aabb) {
+void GLClipPlane::define(const AABB<3>& aabb) {
   center = 0.5f * (aabb.min() + aabb.max());
   vec3f dims = 1.2f * (aabb.max() - aabb.min());
   float a = std::max(dims[0], std::max(dims[1], dims[2]));

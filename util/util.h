@@ -32,29 +32,70 @@ template <typename T>
 class Topology;
 class ShaderProgram;
 
+static inline mat4f get_basis_projector(int d) {
+  mat4f p;
+  int row = 0;
+  for (int i = 0; i < 4; i++) {
+    if (i == d) continue;
+    p(row, i) = 1;
+    row++;
+  }
+  return p;
+}
+
+static inline mat4f get_basis_unprojector(int d) {
+  mat4f p;
+  int col = 0;
+  for (int i = 0; i < 4; i++) {
+    if (i == d) continue;
+    p(i, col) = 1;
+    col++;
+  }
+  return p;
+}
+
+template <int dim>
 struct Ray {
-  Ray(vec3f p, vec3f r) {
+  typedef vec<dim, float> vecr;
+  Ray(vecr p, vecr r) {
     origin = p;
     direction = unit_vector(r);
   }
 
-  void transform(const mat4f& m) {
-    vec4f dh = {direction[0], direction[1], direction[2], 0};
-    direction = unit_vector((m * dh).xyz());
-    vec4f oh = {origin[0], origin[1], origin[2], 1};
-    origin = (m * oh).xyz();
+  Ray(vec3f p, vec3f r, const mat4f& m) {
+    vec4f rh = {r[0], r[1], r[2], 0};
+    vec3f dir = unit_vector((m * rh).xyz());
+    direction[dim - 1] = 0;
+    for (int i = 0; i < 3; i++) direction[i] = dir[i];
+    vec4f ph = {p[0], p[1], p[2], 1};
+    p = (m * ph).xyz();
+    for (int i = 0; i < 3; i++) origin[i] = p[i];
   }
-  vec3f origin;
-  vec3f direction;
+
+  Ray(vec3f p, vec3f r, const mat4f& m, int hyperplane_dim,
+      float hyperplane_distance)
+      : Ray(p, r, m) {
+    assert(dim == 4);
+    mat4f q = get_basis_unprojector(hyperplane_dim);
+    origin = q * origin;
+    direction = q * direction;
+    origin[hyperplane_dim] = hyperplane_distance;
+  }
+
+  vecr origin;
+  vecr direction;
 };
 
+template <int dim>
 class AABB {
+  typedef vec<dim, float> vecb;
+
  public:
   AABB() {}
-  AABB(const vec3f& min, const vec3f& max) {
+  AABB(const vecb& min, const vecb& max) {
     min_ = min;
     max_ = max;
-    for (int d = 0; d < 3; d++) {
+    for (int d = 0; d < dim; d++) {
       if (max_[d] - min_[d] < 1e-4f) {
         min_[d] -= 1e-4f;
         max_[d] += 1e-4f;
@@ -63,7 +104,7 @@ class AABB {
   }
 
   AABB(const AABB& boxl, const AABB& boxr) {
-    for (int d = 0; d < 3; d++) {
+    for (int d = 0; d < dim; d++) {
       min_[d] = std::min(boxl.min()[d], boxr.min()[d]);
       max_[d] = std::max(boxl.max()[d], boxr.max()[d]);
       if (max_[d] - min_[d] < 1e-4f) {
@@ -73,8 +114,8 @@ class AABB {
     }
   }
 
-  bool intersect(const Ray& ray, float tmin, float tmax) {
-    for (int d = 0; d < 3; ++d) {
+  bool intersect(const Ray<dim>& ray, float tmin, float tmax) const {
+    for (int d = 0; d < dim; ++d) {
       float inv_d = 1.0f / ray.direction[d];
       if (ray.direction[d] == 0.0) continue;
       const auto tld = std::min((min_[d] - ray.origin[d]) * inv_d,
@@ -93,15 +134,15 @@ class AABB {
          max_[1], max_[2]);
   }
 
-  const vec3f& min() const { return min_; }
-  const vec3f& max() const { return max_; }
+  const auto& min() const { return min_; }
+  const auto& max() const { return max_; }
 
-  vec3f& min() { return min_; }
-  vec3f& max() { return max_; }
+  auto& min() { return min_; }
+  auto& max() { return max_; }
 
  private:
-  vec3f min_;
-  vec3f max_;
+  vecb min_;
+  vecb max_;
 };
 
 struct GLClipPlane;
@@ -137,7 +178,7 @@ struct GLClipPlane {
 
   void initialize();
 
-  void define(const AABB& aabb);
+  void define(const AABB<3>& aabb);
 
   void get(vec3f& point, vec3f& normal) const;
 
