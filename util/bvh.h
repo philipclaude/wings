@@ -2,7 +2,8 @@
 
 #include <fmt/format.h>
 
-#include <unordered_set>
+#include <random>
+#include <thread>
 #include <vector>
 
 #include "glm.h"
@@ -115,9 +116,8 @@ struct Intersection {
   const BVHLeafBase* elem{nullptr};
 };
 
-template <typename BVHLeaf>
+template <int dim>
 struct BVHNode {
-  static constexpr int dim = BVHLeaf::dim;
   uint32_t left{0};
   uint32_t right{0};
   AABB<dim> box;
@@ -133,6 +133,23 @@ class BoundingVolumeHierarchyBase {
 };
 
 template <typename BVHLeaf>
+class BoundingVolumeHierarchy;
+template <typename BVHLeaf>
+void build_level(BoundingVolumeHierarchy<BVHLeaf>* tree, size_t idx_m,
+                 size_t idx_l, size_t idx_r, int level) {
+  auto l = tree->build(idx_l, idx_m, ++level);
+  auto r = tree->build(idx_m, idx_r, level);
+
+  auto& nodes = tree->nodes();
+  auto& leaves = tree->leaves();
+  nodes[idx_m].left = l;
+  nodes[idx_m].right = r;
+  nodes[idx_m].box =
+      AABB<BVHLeaf::dim>(l < 0 ? leaves[-l - 1].box() : nodes[l].box,
+                         r < 0 ? leaves[-r - 1].box() : nodes[r].box);
+}
+
+template <typename BVHLeaf>
 class BoundingVolumeHierarchy : public BoundingVolumeHierarchyBase {
  public:
   static constexpr int dim = BVHLeaf::dim;
@@ -144,35 +161,48 @@ class BoundingVolumeHierarchy : public BoundingVolumeHierarchyBase {
   }
 
   void build() {
-    LOGF("Building BVH with {} leaves.", leaves_.size());
-    nodes_.clear();
+    size_t n_threads = std::thread::hardware_concurrency();
+    threads_.reserve(n_threads);
+    paralevel_ = std::ceil(std::log(n_threads) / std::log(2));
     nodes_.resize(2 * leaves_.size());
-    root_ = 0;
-    root_ = build(root_, 0, leaves_.size());
-    assert(root_ == 0);
+    Timer timer;
+    timer.start();
+    root_ = build(0, leaves_.size(), 0);
+    for (auto& t : threads_) t.join();
+    update_boxes(root_, 0);
+    timer.stop();
+    LOGF("Built BVH in {} seconds.", timer.seconds());
   }
 
-  int32_t build(size_t& i, size_t m, size_t n) {
-    int64_t n_objects = n - m;
-    if (n_objects == 0) return 0;
-    if (n_objects == 1) return -m - 1;
+  void update_boxes(int32_t idx, int level) {
+    if (idx < 0 || level >= paralevel_) return;
+    update_boxes(nodes_[idx].left, level + 1);
+    update_boxes(nodes_[idx].right, level + 1);
+    auto l = nodes_[idx].left;
+    auto r = nodes_[idx].right;
+    nodes_[idx].box = AABB<dim>(l < 0 ? leaves_[-l - 1].box() : nodes_[l].box,
+                                r < 0 ? leaves_[-r - 1].box() : nodes_[r].box);
+  }
 
-    size_t mid = std::floor(0.5 * (m + n));
+  int32_t build(size_t idx_l, size_t idx_r, int level) {
+    int64_t n_objects = idx_r - idx_l;
+    if (n_objects == 0) return 0;
+    if (n_objects == 1) return -idx_l - 1;
+
+    size_t idx_m = std::floor(0.5 * (idx_l + idx_r));
     int axis = std::floor(rand() * dim / double(RAND_MAX));
     const auto compare = [axis](const auto& a, const auto& b) {
       return a.box().min()[axis] < b.box().min()[axis];
     };
-    std::nth_element(leaves_.begin() + m, leaves_.begin() + mid,
-                     leaves_.begin() + n, compare);
-    size_t idx_m = i++;
-    auto l = build(i, m, mid);
-    auto r = build(i, mid, n);
+    std::nth_element(leaves_.begin() + idx_l, leaves_.begin() + idx_m,
+                     leaves_.begin() + idx_r, compare);
 
-    nodes_[idx_m].left = l;
-    nodes_[idx_m].right = r;
-    nodes_[idx_m].box =
-        AABB<dim>(l < 0 ? leaves_[-l - 1].box() : nodes_[l].box,
-                  r < 0 ? leaves_[-r - 1].box() : nodes_[r].box);
+    if (level != paralevel_) {
+      build_level<BVHLeaf>(this, idx_m, idx_l, idx_r, level);
+    } else {
+      threads_.push_back(
+          std::thread(build_level<BVHLeaf>, this, idx_m, idx_l, idx_r, level));
+    }
     return idx_m;
   }
 
@@ -207,10 +237,15 @@ class BoundingVolumeHierarchy : public BoundingVolumeHierarchyBase {
     return Intersection();
   }
 
+  auto& nodes() { return nodes_; }
+  auto& leaves() { return leaves_; }
+
  private:
   size_t root_;
-  std::vector<BVHNode<BVHLeaf>> nodes_;
+  std::vector<BVHNode<BVHLeaf::dim>> nodes_;
   std::vector<BVHLeaf> leaves_;
+  int paralevel_{-1};
+  std::vector<std::thread> threads_;
 };
 
 }  // namespace wings

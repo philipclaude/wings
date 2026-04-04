@@ -470,7 +470,6 @@ class MeshScene : public wings::Scene {
     hidden_.resize(maxg + 1, false);
 
     bvh_->build();
-    LOG << "Built BVH.";
 
     if (mesh_.vertices().dim() == 4) {
       points_.write(mesh_.vertices());
