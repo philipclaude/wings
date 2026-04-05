@@ -9,6 +9,8 @@ uniform int u_height;
 
 uniform samplerBuffer points;
 uniform usamplerBuffer index;
+uniform usamplerBuffer group;
+uniform isamplerBuffer hidden;
 
 uniform vec4 u_hyperplane_center;
 uniform vec4 u_hyperplane_normal;
@@ -20,8 +22,9 @@ flat in int[] v_id;
 // outputs
 out vec3 v_Position;
 noperspective out vec3 v_Altitude;
-flat out int id;
+flat out int v_CellNumber;
 out vec3 v_Normal;
+flat out int v_Group;
 
 layout (points) in;
 layout (triangle_strip , max_vertices = 6) out;
@@ -62,21 +65,21 @@ void make_triangle(vec3 x0 , vec3 x1 , vec3 x2, int d0, int d1, int d2) {
   gl_Position = p0;
   v_Position  = (u_ModelViewMatrix * vec4(x0, 1)).xyz;
   v_Altitude    = vec3(h0, 0, 0);
-  id = v_id[0];
+  v_CellNumber = v_id[0];
   v_Normal = n;
   EmitVertex();
 
   gl_Position = p1;
   v_Position  = (u_ModelViewMatrix * vec4(x1, 1)).xyz;
   v_Altitude    = vec3(0, h1, 0);
-  id = v_id[0];
+  v_CellNumber = v_id[0];
   v_Normal = n;
   EmitVertex();
 
   gl_Position = p2;
   v_Position  = (u_ModelViewMatrix * vec4(x2, 1)).xyz;
   v_Altitude    = vec3(0, 0, h2);
-  id = v_id[0];
+  v_CellNumber = v_id[0];
   v_Normal = n;
 
   gl_PrimitiveID = gl_PrimitiveIDIn;
@@ -191,6 +194,12 @@ const int vtab[18] = int[](
 );
 
 void main() {
+
+  v_Group = int(texelFetch(group, v_id[0]).r);
+  if (v_Group >= 0) {
+    int h = texelFetch(hidden, v_Group).r;
+    if (h == 1) return;
+  }
 
   // tet vertex indices and coordinates
   uvec4 tet = texelFetch(index, v_id[0]).rgba;

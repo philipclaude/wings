@@ -24,6 +24,18 @@
 
 namespace wings {
 
+template <>
+void AABB<3>::print() const {
+  LOGF("Box: {}, {}, {} -> {}, {}, {}", min_[0], min_[1], min_[2], max_[0],
+       max_[1], max_[2]);
+}
+
+template <>
+void AABB<4>::print() const {
+  LOGF("Box: {}, {}, {} {} -> {}, {}, {} {}", min_[0], min_[1], min_[2],
+       min_[3], max_[0], max_[1], max_[2], max_[3]);
+}
+
 GLClipPlane::GLClipPlane()
     : length(-1.0f), visible(false), distance(0.0f), active(false) {
   transformation.eye();

@@ -64,6 +64,8 @@ class TopologyBase : public array2d<index_t> {
     group_[k] = value;
   }
 
+  const auto& groups() const { return group_; }
+
  protected:
   std::vector<int32_t> group_;
 };

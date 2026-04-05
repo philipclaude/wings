@@ -43,7 +43,8 @@ struct vec : public std::array<T, N> {
     int i = 0;
     for (const auto& value : v) (*this)[i++] = value;
   }
-  vec(const T* v, size_t n = 0) {
+  template <typename T2>
+  vec(const T2* v, size_t n = 0) {
     if (n == 0) n = N;
     for (size_t i = 0; i < n; i++) (*this)[i] = v[i];
   }
@@ -74,9 +75,20 @@ inline T length(const vec<3, T>& u) {
 }
 
 template <typename T>
+inline T length(const vec<4, T>& u) {
+  return std::sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2] + u[3] * u[3]);
+}
+
+template <typename T>
 inline vec<3, T> unit_vector(const vec<3, T>& u) {
   T l = length(u);
   return {u[0] / l, u[1] / l, u[2] / l};
+}
+
+template <typename T>
+inline vec<4, T> unit_vector(const vec<4, T>& u) {
+  T l = length(u);
+  return {u[0] / l, u[1] / l, u[2] / l, u[3] / l};
 }
 
 template <typename T>
@@ -93,6 +105,11 @@ inline vec<3, T> cross(const vec<3, T>& u, const vec<3, T>& v) {
 template <typename T>
 inline vec<3, T> operator-(const vec<3, T>& u, const vec<3, T>& v) {
   return {u[0] - v[0], u[1] - v[1], u[2] - v[2]};
+}
+
+template <typename T>
+inline vec<4, T> operator-(const vec<4, T>& u, const vec<4, T>& v) {
+  return {u[0] - v[0], u[1] - v[1], u[2] - v[2], u[3] - v[3]};
 }
 
 template <typename T>

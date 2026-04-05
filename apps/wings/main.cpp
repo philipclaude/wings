@@ -196,6 +196,17 @@ class LinearPrimitive4d : public BasePrimitive {
     buffer(indices);
     n_draw_ = topology.n();
     stride_ = topology.stride();
+    max_cell_ = topology.n();
+
+    GL_CALL(glGenBuffers(1, &group_buffer_));
+    GL_CALL(glGenTextures(1, &group_texture_));
+    std::vector<GLuint> group(topology.groups().begin(),
+                              topology.groups().end());
+    // write the group data
+    GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, group_buffer_));
+    GL_CALL(glBufferData(GL_TEXTURE_BUFFER, sizeof(GLuint) * group.size(),
+                         group.data(), GL_STATIC_DRAW));
+    GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, 0));
   }
 
   void write(const GLClipPlane*) { NOT_IMPLEMENTED; }
@@ -208,6 +219,12 @@ class LinearPrimitive4d : public BasePrimitive {
     shader.set_uniform("u_BasisProjectionMatrix", view.basis_projector);
     shader.set_uniform("u_hyperplane_normal", view.hypernormal);
     shader.set_uniform("u_hyperplane_center", view.hypercenter);
+
+    // bind the group buffer to the group texture
+    GL_CALL(glActiveTexture(GL_TEXTURE0 + GROUP_TEXTURE));
+    GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, group_texture_));
+    GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, group_buffer_));
+    shader.set_uniform("group", int(GROUP_TEXTURE));
 
     GL_CALL(glActiveTexture(GL_TEXTURE0 + INDEX_TEXTURE));
     GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, index_texture_));
@@ -227,6 +244,8 @@ class LinearPrimitive4d : public BasePrimitive {
   PointTexture& points_;
   GLuint index_buffer_;
   GLuint index_texture_;
+  GLuint group_buffer_;
+  GLuint group_texture_;
   size_t n_draw_;
   int stride_;
 };
@@ -424,19 +443,14 @@ class MeshScene : public wings::Scene {
     context_->make_context_current();
 
     if (mesh_.vertices().dim() == 3)
-      bvh_ = std::make_unique<BoundingVolumeHierarchy<BVHTriangle>>();
+      bvh_ = std::make_unique<BoundingVolumeHierarchy<BVHTriangle>>(&mesh_);
     else if (mesh_.vertices().dim() == 4) {
-      bvh_ = std::make_unique<BoundingVolumeHierarchy<BVHTet>>();
+      bvh_ = std::make_unique<BoundingVolumeHierarchy<BVHTet>>(&mesh_);
       auto* bvh_4d = static_cast<BoundingVolumeHierarchy<BVHTet>*>(bvh_.get());
       for (size_t k = 0; k < mesh_.tetrahedra().n(); k++) {
-        std::array<vec4f, 4> tet;
-        for (int j = 0; j < 4; j++) {
-          for (int d = 0; d < 4; d++)
-            tet[j][d] = mesh_.vertices()[mesh_.tetrahedra()(k, j)][d];
-        }
-        bvh_4d->add(tet, k, mesh_.tetrahedra().group(k));
+        BVHTet tet(mesh_, k, mesh_.tetrahedra().group(k));
+        bvh_4d->add(tet);
       }
-
     } else
       NOT_IMPLEMENTED;
 
@@ -550,7 +564,19 @@ class MeshScene : public wings::Scene {
 
   void center_view(ClientView& view) {
     if (!view.picked) return;
-    center_view(view, view.picked->center());
+    if (mesh_.vertices().dim() == 3)
+      center_view(view, view.picked->center());
+    else if (mesh_.vertices().dim() == 4) {
+      auto cell = view.picked->cell();
+      vec4f p{0, 0, 0, 0};
+      for (int j = 0; j < 4; j++) {
+        vec4f pj(mesh_.vertices()[mesh_.tetrahedra()(cell, j)]);
+        p = p + pj;
+      }
+      vec3f q = project4d(0.25f * p, view.hyperdir);
+      center_view(view, q);
+    } else
+      NOT_POSSIBLE;
   }
 
   Intersection raycast(const ClientView& view, float pixel_x, float pixel_y) {
@@ -560,9 +586,17 @@ class MeshScene : public wings::Scene {
     float y = -h / 2 + h * (1 - (pixel_y + 0.5) / view.canvas.height);
 
     auto transformation = glm::inverse(view.view_matrix * view.model_matrix);
-    Ray<3> ray({0, 0, 0}, {x, y, -1}, transformation);
-    // ray.transform(transformation);
-    return bvh_->intersect(ray, hidden_);
+    Ray<3> ray3d({0, 0, 0}, {x, y, -1}, transformation);
+
+    if (mesh_.vertices().dim() == 4) {
+      int dim = view.hyperdir;
+      vec4f origin4d = lift4d(ray3d.origin, dim, view.hypercenter[dim]);
+      vec4f direction4d = lift4d(ray3d.direction, dim, 0.0f);  // 1e-5f);
+      Ray<4> ray4d(origin4d, direction4d);
+      return bvh_->intersect(ray4d, hidden_);
+    }
+
+    return bvh_->intersect(ray3d, hidden_);
   }
 
   bool render(const wings::ClientInput& input, int client_idx,

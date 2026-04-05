@@ -54,12 +54,34 @@ static inline mat4f get_basis_unprojector(int d) {
   return p;
 }
 
+static inline vec4f lift4d(const vec3f& v, int d, float val) {
+  vec4f result;
+  int row = 0;
+  for (int i = 0; i < 4; i++) {
+    if (i == d)
+      result[i] = val;
+    else
+      result[i] = v[row++];
+  }
+  return result;
+}
+
+static inline vec3f project4d(const vec4f& v, int d) {
+  vec3f result;
+  int row = 0;
+  for (int i = 0; i < 4; i++) {
+    if (i == d) continue;
+    result[row++] = v[i];
+  }
+  return result;
+}
+
 template <int dim>
 struct Ray {
   typedef vec<dim, float> vecr;
   Ray(vecr p, vecr r) {
     origin = p;
-    direction = unit_vector(r);
+    direction = r;  // unit_vector(r);
   }
 
   Ray(vec3f p, vec3f r, const mat4f& m) {
@@ -122,6 +144,7 @@ class AABB {
                                 (max_[d] - ray.origin[d]) * inv_d);
       const auto tud = std::max((min_[d] - ray.origin[d]) * inv_d,
                                 (max_[d] - ray.origin[d]) * inv_d);
+      // LOGF("d = {}, tld = {}, tud = {}", d, tld, tud);
       tmin = std::max(tld, tmin);
       tmax = std::min(tud, tmax);
       if (tmax <= tmin) return false;
@@ -129,10 +152,7 @@ class AABB {
     return true;
   }
 
-  void print() const {
-    LOGF("Box: {}, {}, {} -> {}, {}, {}", min_[0], min_[1], min_[2], max_[0],
-         max_[1], max_[2]);
-  }
+  void print() const;
 
   const auto& min() const { return min_; }
   const auto& max() const { return max_; }

@@ -12,6 +12,14 @@
 
 namespace wings {
 
+class Mesh;
+
+class BVHLeafBase;
+struct Intersection {
+  const BVHLeafBase* elem{nullptr};
+  float t{-1};
+};
+
 class BVHLeafBase {
  public:
   virtual ~BVHLeafBase() {}
@@ -66,8 +74,10 @@ class BVHTriangle : public BVHLeafBase {
     box_ = AABB<3>(min, max);
   }
 
-  float intersect(const Ray<3>& ray, float tmin, float tmax) const {
-    return intersect_ray_triangle(ray, a_, b_, c_, tmin, tmax);
+  Intersection intersect(const Mesh*, const Ray<3>& ray, float tmin,
+                         float tmax) const {
+    float t = intersect_ray_triangle(ray, a_, b_, c_, tmin, tmax);
+    return {this, t};
   }
 
   const AABB<3>& box() const { return box_; }
@@ -95,25 +105,17 @@ class BVHTet : public BVHLeafBase {
     box_ = AABB<dim>(min, max);
   }
 
-  float intersect(const Ray<4>& ray, float tmin, float tmax) const {
-    // determine which edges are intersected
-    return -1;  // intersect_ray_triangle(ray, a_, b_, c_, tmin, tmax);
-  }
+  BVHTet(const Mesh& mesh, uint32_t cell, int group);
+
+  Intersection intersect(const Mesh* mesh, const Ray<4>& ray, float tmin,
+                         float tmax) const;
 
   const auto& box() const { return box_; }
 
-  vec3f center() const {
-    return {0, 0, 0};
-  }  //(a_ + b_ + c_ + d_).xyz() / 3.0f; }
+  vec3f center() const { return {0, 0, 0}; }
 
  private:
-  // vec4f a_, b_, c_, d_;
   AABB<dim> box_;
-};
-
-struct Intersection {
-  float t{-1};
-  const BVHLeafBase* elem{nullptr};
 };
 
 template <int dim>
@@ -154,11 +156,13 @@ class BoundingVolumeHierarchy : public BoundingVolumeHierarchyBase {
  public:
   static constexpr int dim = BVHLeaf::dim;
   using vecf = vec<dim, float>;
-  BoundingVolumeHierarchy() {}
+  BoundingVolumeHierarchy(const Mesh* mesh = nullptr) : mesh_(mesh) {}
 
   void add(const std::array<vecf, BVHLeaf::N>& elem, uint32_t cell, int group) {
     leaves_.emplace_back(elem, cell, group);
   }
+
+  void add(BVHLeaf leaf) { leaves_.push_back(leaf); }
 
   void build() {
     size_t n_threads = std::thread::hardware_concurrency();
@@ -172,6 +176,7 @@ class BoundingVolumeHierarchy : public BoundingVolumeHierarchyBase {
     update_boxes(root_, 0);
     timer.stop();
     LOGF("Built BVH in {} seconds.", timer.seconds());
+    nodes_[root_].box.print();
   }
 
   void update_boxes(int32_t idx, int level) {
@@ -213,7 +218,7 @@ class BoundingVolumeHierarchy : public BoundingVolumeHierarchyBase {
 
   Intersection intersect(const Ray<dim>& ray,
                          const std::vector<bool>& hidden) const {
-    return intersect(root_, ray, 1e-6f, 10000.0f, hidden);
+    return intersect(root_, ray, 1e-6f, 2e6f, hidden);
   }
 
   Intersection intersect(int32_t idx, const Ray<dim>& ray, float tmin,
@@ -222,9 +227,7 @@ class BoundingVolumeHierarchy : public BoundingVolumeHierarchyBase {
       auto& leaf = leaves_[-idx - 1];
       auto group = leaf.group();
       if (group >= 0 && hidden[group]) return Intersection();
-      float t = leaf.intersect(ray, tmin, tmax);
-      if (t < tmin || t > tmax) return Intersection();
-      return {t, &leaf};
+      return leaf.intersect(mesh_, ray, tmin, tmax);
     }
     const auto& node = nodes_[idx];
     if (!node.box.intersect(ray, tmin, tmax)) return Intersection();
@@ -232,15 +235,24 @@ class BoundingVolumeHierarchy : public BoundingVolumeHierarchyBase {
     auto ixnL = intersect(node.left, ray, tmin, tmax, hidden);
     auto ixnR =
         intersect(node.right, ray, tmin, ixnL.t > 0 ? ixnL.t : tmax, hidden);
+    if (ixnR.t > 0 && ixnL.t > 0) {
+      // The rendering algorithm will draw tetrahedra in order and it's possible
+      // that the ray exactly grazes the triangle between two tetrahedra.
+      // Since the last tetrahedron will be visible, favour a higher
+      // cell index to break ties.
+      if (std::fabs(ixnR.t - ixnL.t) < 1e-5) {
+        return ixnR.elem->cell() > ixnL.elem->cell() ? ixnR : ixnL;
+      }
+    }
     if (ixnR.t > 0) return ixnR;
-    if (ixnL.t > 0) return ixnL;
-    return Intersection();
+    return ixnL;
   }
 
   auto& nodes() { return nodes_; }
   auto& leaves() { return leaves_; }
 
  private:
+  const Mesh* mesh_;
   size_t root_;
   std::vector<BVHNode<BVHLeaf::dim>> nodes_;
   std::vector<BVHLeaf> leaves_;
