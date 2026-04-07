@@ -6,10 +6,11 @@ uniform mat4 u_ModelViewMatrix;
 
 uniform int u_width;
 uniform int u_height;
+uniform int u_type; // 0 for tetrahedra, 1 for pentatopes
 
 uniform samplerBuffer points;
 uniform usamplerBuffer index;
-uniform usamplerBuffer group;
+uniform usamplerBuffer aux;
 uniform isamplerBuffer hidden;
 
 uniform vec4 u_hyperplane_center;
@@ -31,7 +32,7 @@ layout (triangle_strip , max_vertices = 6) out;
 
 #define LARGE_DISTANCE 1000000
 
-void make_triangle(vec3 x0 , vec3 x1 , vec3 x2, int d0, int d1, int d2) {
+void make_triangle(vec3 x0 , vec3 x1 , vec3 x2, int d0, int d1, int d2, int cell_id, int group_id) {
 
   vec2 viewport = vec2(u_width, u_height);
 
@@ -65,21 +66,24 @@ void make_triangle(vec3 x0 , vec3 x1 , vec3 x2, int d0, int d1, int d2) {
   gl_Position = p0;
   v_Position  = (u_ModelViewMatrix * vec4(x0, 1)).xyz;
   v_Altitude    = vec3(h0, 0, 0);
-  v_CellNumber = v_id[0];
+  v_CellNumber = cell_id;
+  v_Group = group_id;
   v_Normal = n;
   EmitVertex();
 
   gl_Position = p1;
   v_Position  = (u_ModelViewMatrix * vec4(x1, 1)).xyz;
   v_Altitude    = vec3(0, h1, 0);
-  v_CellNumber = v_id[0];
+  v_CellNumber = cell_id;
+  v_Group = group_id;
   v_Normal = n;
   EmitVertex();
 
   gl_Position = p2;
   v_Position  = (u_ModelViewMatrix * vec4(x2, 1)).xyz;
   v_Altitude    = vec3(0, 0, h2);
-  v_CellNumber = v_id[0];
+  v_CellNumber = cell_id;
+  v_Group = group_id;
   v_Normal = n;
 
   gl_PrimitiveID = gl_PrimitiveIDIn;
@@ -113,26 +117,6 @@ int intersect(in float num, in vec4 p, in vec4 q, out vec3 position) {
 // 3: 1-2
 // 4: 1-3
 // 5: 2-3
-#if 0
-const int rtab[64] = int[](
-  -1, -1, -1, -1, // 0 (0)
-  0, 1, 2, -1, // 1 (3)
-  0, 3, 4, -1, // 2 (3)
-  4, 3, 2, 1, // 3 (4)
-  1, 3, 5, -1, // 4 (3)
-  5, 3, 2, 0, // 5 (4)
-  5, 4, 1, 0, // 6 (4)
-  4, 2, 5, -1, // 7 (3)
-  4, 2, 5, -1, // 8 (3)
-  5, 4, 1, 0, // 9 (4)
-  5, 3, 2, 0, // 10 (4)
-  1, 3, 5, -1, // 11 (3)
-  4, 3, 2, 1, // 12 (4)
-  0, 3, 4, -1, // 13 (3)
-  0, 1, 2, -1, // 14 (3)
-  -1, -1, -1, -1 // 15 (0)
-);
-#else
 const int rtab[64] = int[](
   -1, -1, -1, -1, // 0 (0)
   0, 1, 2, 0, // 1 (3)
@@ -151,7 +135,6 @@ const int rtab[64] = int[](
   0, 1, 2, 0, // 14 (3)
   -1, -1, -1, -1 // 15 (0)
 );
-#endif
 
 // shape table (0: none, 1: triangle, 2: quad)
 const int stab[16] = int[](
@@ -195,14 +178,23 @@ const int vtab[18] = int[](
 
 void main() {
 
-  v_Group = int(texelFetch(group, v_id[0]).r);
-  if (v_Group >= 0) {
-    int h = texelFetch(hidden, v_Group).r;
+  // index of the tetrahedron being processed
+  int tet_id = v_id[0];
+
+  // the aux texture either holds:
+  // 1. cell id when u_type is 1 (pentatopes)
+  // 2. group_id when u_type is 0 (tetrahedra)
+  int aux_data = int(texelFetch(aux, tet_id).r);
+  int cell_id = u_type * aux_data + (1 - u_type) * tet_id;
+  int group_id = (1 - u_type) * aux_data + u_type * cell_id;
+
+  if (group_id >= 0) {
+    int h = texelFetch(hidden, group_id).r;
     if (h == 1) return;
   }
 
   // tet vertex indices and coordinates
-  uvec4 tet = texelFetch(index, v_id[0]).rgba;
+  uvec4 tet = texelFetch(index, tet_id).rgba;
   vec4 x[4];
   x[0] = texelFetch(points, int(tet.r));
   x[1] = texelFetch(points, int(tet.g));
@@ -244,7 +236,7 @@ void main() {
   int v0 = vtab[6 * shape];
   int v1 = vtab[6 * shape + 1];
   int v2 = vtab[6 * shape + 2];
-  make_triangle(pa, pb, pc, v0, v1, v2);
+  make_triangle(pa, pb, pc, v0, v1, v2, cell_id, group_id);
   //if (v_intersect == 3) return; // triangle
 
   vec3 pd;
@@ -254,5 +246,5 @@ void main() {
   v0 = vtab[6 * shape + 3];
   v1 = vtab[6 * shape + 4];
   v2 = vtab[6 * shape + 5];
-  make_triangle(pb, pd, pc, v0, v1, v2);
+  make_triangle(pb, pd, pc, v0, v1, v2, cell_id, group_id);
 }

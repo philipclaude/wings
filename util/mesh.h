@@ -51,7 +51,7 @@ class TopologyBase : public array2d<index_t> {
   void add(const R* x, int m = -1) {
     (m < 0) ? array2d<index_t>::template add<R>(x)
             : array2d<index_t>::template add<R>(x, m);
-    group_.push_back(-1);
+    group_.push_back(0);
   }
 
   int group(index_t k) const {

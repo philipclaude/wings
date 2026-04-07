@@ -15,6 +15,9 @@
 //  See the License for the specific language governing permissions and
 //  limitations under the License.
 //
+#include <absl/container/flat_hash_map.h>
+#include <absl/container/flat_hash_set.h>
+
 #include <array>
 #include <fstream>
 #include <memory>
@@ -31,6 +34,10 @@
 #include "util.h"
 
 namespace wings {
+
+using PentatopeFace_t = std::array<index_t, 4>;
+std::vector<PentatopeFace_t> kPentatopesFaces = {
+    {0, 1, 2, 3}, {0, 2, 3, 4}, {0, 1, 3, 4}, {0, 1, 2, 4}, {1, 2, 3, 4}};
 
 enum TextureIndex {
   POINT_TEXTURE = 0,
@@ -61,10 +68,10 @@ struct ClientView {
   double x{0}, y{0};
   GLuint vertex_array;
   std::unordered_map<std::string, bool> active = {
-      {"Points", false},    {"Nodes", true},   {"Lines", false},
-      {"Triangles", true},  {"Quads", true},   {"Polygons", true},
-      {"Tetrahedra", true}, {"Prisms", false}, {"Pyramids", false},
-      {"Polyhedra", false}};
+      {"Points", false},    {"Nodes", true},     {"Lines", false},
+      {"Triangles", true},  {"Quads", true},     {"Polygons", true},
+      {"Tetrahedra", true}, {"Prisms", false},   {"Pyramids", false},
+      {"Polyhedra", false}, {"Pentatopes", true}};
   int show_wireframe{1};
   float transparency{1.0};
   int lighting{1};
@@ -87,7 +94,7 @@ class BasePrimitive {
       : name_(name), mesh_(mesh), bvh_(bvh) {}
   virtual ~BasePrimitive() {}
   virtual void draw(ShaderProgram&, const ClientView&) const = 0;
-  virtual void write(const GLClipPlane*) = 0;
+  virtual void write(const ClientView*) = 0;
 
   float umin() const { return umin_; }
   float umax() const { return umax_; }
@@ -139,12 +146,24 @@ int VisualizationTriangles<Tet>::triangles[4][3] = {
     {2, 3, 1}, {0, 3, 2}, {1, 3, 0}, {0, 2, 1}};
 int VisualizationTriangles<Tet>::edges[4] = {7, 7, 7, 7};
 
+template <>
+struct VisualizationTriangles<Pentatope> {
+  static const int n = -1;
+  static int triangles[1][3];
+  static int edges[1];
+};
+int VisualizationTriangles<Pentatope>::triangles[1][3] = {{-1, -1, -1}};
+int VisualizationTriangles<Pentatope>::edges[1] = {-1};
+
 class PointTexture {
  public:
-  PointTexture() {}
+  PointTexture() : written_(false) {}
 
   ~PointTexture() {
-    // TODO
+    if (written_) {
+      GL_CALL(glDeleteBuffers(1, &buffer_));
+      GL_CALL(glDeleteTextures(1, &texture_));
+    }
   }
 
   void write(const Vertices& vertices) {
@@ -157,6 +176,7 @@ class PointTexture {
     GL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * coordinates.size(),
                          coordinates.data(), GL_STATIC_DRAW));
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
+    written_ = true;
   }
 
   void bind(const ShaderProgram& shader, const std::string& name) {
@@ -170,6 +190,7 @@ class PointTexture {
  private:
   GLuint texture_;
   GLuint buffer_;
+  bool written_{false};
 };
 
 template <typename T>
@@ -178,53 +199,137 @@ class LinearPrimitive4d : public BasePrimitive {
   LinearPrimitive4d(PointTexture& points, const std::string& name,
                     const Mesh& mesh, BoundingVolumeHierarchyBase& bvh)
       : BasePrimitive(name, mesh, bvh), points_(points) {
+    GL_CALL(glGenTextures(1, &index_texture_));
+    GL_CALL(glGenBuffers(1, &index_buffer_));
+    GL_CALL(glGenTextures(1, &aux_texture_));
+    GL_CALL(glGenBuffers(1, &aux_buffer_));
     write(mesh.get<T>());
   }
 
-  void buffer(const std::vector<GLuint>& indices) {
-    GL_CALL(glGenTextures(1, &index_texture_));
-    GL_CALL(glGenBuffers(1, &index_buffer_));
+  ~LinearPrimitive4d() {
+    GL_CALL(glDeleteTextures(1, &index_texture_));
+    GL_CALL(glDeleteBuffers(1, &index_buffer_));
+    GL_CALL(glDeleteTextures(1, &aux_texture_));
+    GL_CALL(glDeleteBuffers(1, &aux_buffer_));
+  }
+
+  void write(const Topology<T>& topology) {
+    if (name_ == "Pentatopes") return;
+    if (topology.n() == 0) return;
+
+    n_draw_ = topology.n();
+    stride_ = topology.stride();
+    max_cell_ = topology.n();
+
+    // write the index data
+    std::vector<GLuint> indices(topology.data().begin(), topology.data().end());
     GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer_));
     GL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER,
                          sizeof(GLuint) * indices.size(), indices.data(),
                          GL_STATIC_DRAW));
     GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
-  }
 
-  void write(const Topology<T>& topology) {
-    std::vector<GLuint> indices(topology.data().begin(), topology.data().end());
-    buffer(indices);
-    n_draw_ = topology.n();
-    stride_ = topology.stride();
-    max_cell_ = topology.n();
-
-    GL_CALL(glGenBuffers(1, &group_buffer_));
-    GL_CALL(glGenTextures(1, &group_texture_));
+    // write the group data to the aux buffer
     std::vector<GLuint> group(topology.groups().begin(),
                               topology.groups().end());
-    // write the group data
-    GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, group_buffer_));
+    GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, aux_buffer_));
     GL_CALL(glBufferData(GL_TEXTURE_BUFFER, sizeof(GLuint) * group.size(),
                          group.data(), GL_STATIC_DRAW));
     GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, 0));
   }
 
-  void write(const GLClipPlane*) { NOT_IMPLEMENTED; }
+  void write(const ClientView* view) {
+    if (name_ != "Pentatopes") return;
+
+    vec3f point3d, normal3d;
+    view->plane.get(point3d, normal3d);
+
+    int dim = view->hyperdir;
+    vec4f point4d = lift4d(point3d, dim, view->hypercenter[dim]);
+    vec4f normal4d = lift4d(normal3d, dim, 0);
+
+    // find all pentatopes intersected by the 3d clipping plane along the
+    // current viewing hyperplane dimension
+    std::vector<uint32_t> intersected;
+    const auto& pentatopes = mesh_.pentatopes();
+    for (size_t k = 0; k < pentatopes.n(); k++) {
+      int sign = 0;
+      for (int j = 0; j < Pentatope::n_vertices; j++) {
+        vec4f p(mesh_.vertices()[pentatopes[k][j]]);
+        double sj = dot(p - point4d, normal4d);
+        if (sj < 0)
+          sign--;
+        else
+          sign++;
+      }
+      if (std::abs(sign) != Pentatope::n_vertices) intersected.push_back(k);
+    }
+
+    // extract the tetrahedra
+    absl::flat_hash_map<PentatopeFace_t, size_t> faces;
+    for (size_t k = 0; k < intersected.size(); k++) {
+      auto* p = pentatopes[intersected[k]];
+      for (size_t j = 0; j < kPentatopesFaces.size(); j++) {
+        PentatopeFace_t tet{0, 0, 0, 0};
+        for (size_t i = 0; i < tet.size(); i++)
+          tet[i] = p[kPentatopesFaces[j][i]];
+
+        std::sort(tet.begin(), tet.end());
+        auto it = faces.find(tet);
+        if (it == faces.end()) {
+          faces.insert({tet, intersected[k]});
+        } else {
+          faces.erase(it);
+        }
+      }
+    }
+    LOGF("Extracted {} tetrahedra from {} pentatopes", faces.size(),
+         intersected.size());
+
+    // write the index data
+    std::vector<GLuint> indices(faces.size() * Tet::n_vertices);
+    std::vector<GLuint> cell(faces.size(), 0);
+    size_t m = 0;
+    for (const auto& [tet, c] : faces) {
+      cell[m] = c;
+      for (int i = 0; i < Tet::n_vertices; i++)
+        indices[Tet::n_vertices * m + i] = tet[i];
+      m++;
+    }
+    GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, index_buffer_));
+    GL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                         sizeof(GLuint) * indices.size(), indices.data(),
+                         GL_STATIC_DRAW));
+    GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+
+    // write the cell numbers to the aux buffer
+    GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, aux_buffer_));
+    GL_CALL(glBufferData(GL_TEXTURE_BUFFER, sizeof(GLuint) * cell.size(),
+                         cell.data(), GL_STATIC_DRAW));
+    GL_CALL(glBindBuffer(GL_TEXTURE_BUFFER, 0));
+
+    n_draw_ = faces.size();
+    stride_ = Tet::n_vertices;
+    max_cell_ = pentatopes.n();
+    clipped_ = true;
+  }
 
   void draw(ShaderProgram& shader, const ClientView& view) const {
-    shader.use();
+    if (name_ == "Pentatopes" && !clipped_) return;
 
+    shader.use();
     shader.set_uniform("u_width", view.canvas.width);
     shader.set_uniform("u_height", view.canvas.height);
     shader.set_uniform("u_BasisProjectionMatrix", view.basis_projector);
     shader.set_uniform("u_hyperplane_normal", view.hypernormal);
     shader.set_uniform("u_hyperplane_center", view.hypercenter);
+    shader.set_uniform("u_type", name_ == "Pentatopes" ? 1 : 0);
 
-    // bind the group buffer to the group texture
-    GL_CALL(glActiveTexture(GL_TEXTURE0 + GROUP_TEXTURE));
-    GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, group_texture_));
-    GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, group_buffer_));
-    shader.set_uniform("group", int(GROUP_TEXTURE));
+    // bind the aux buffer to the aux texture
+    GL_CALL(glActiveTexture(GL_TEXTURE0 + AUX_TEXTURE));
+    GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, aux_texture_));
+    GL_CALL(glTexBuffer(GL_TEXTURE_BUFFER, GL_R32UI, aux_buffer_));
+    shader.set_uniform("aux", int(AUX_TEXTURE));
 
     GL_CALL(glActiveTexture(GL_TEXTURE0 + INDEX_TEXTURE));
     GL_CALL(glBindTexture(GL_TEXTURE_BUFFER, index_texture_));
@@ -244,10 +349,11 @@ class LinearPrimitive4d : public BasePrimitive {
   PointTexture& points_;
   GLuint index_buffer_;
   GLuint index_texture_;
-  GLuint group_buffer_;
-  GLuint group_texture_;
+  GLuint aux_buffer_;
+  GLuint aux_texture_;
   size_t n_draw_;
   int stride_;
+  bool clipped_{false};
 };
 
 template <typename T>
@@ -274,8 +380,8 @@ class LinearPrimitive3d : public BasePrimitive {
     GL_CALL(glDeleteTextures(1, &group_texture_));
   }
 
-  void write(const GLClipPlane* plane) {
-    if (T::dimension == 3 and !plane) return;
+  void write(const ClientView* view) {
+    if (T::dimension == 3 and !view) return;
 
     int dim = mesh_.vertices().dim();
     const auto& topology = mesh_.get<T>();
@@ -289,8 +395,8 @@ class LinearPrimitive3d : public BasePrimitive {
     group.reserve(topology.n() * VisualizationTriangles<T>::n);
 
     vec3f center, normal;
-    if (plane) {
-      plane->get(center, normal);
+    if (view) {
+      view->plane.get(center, normal);
     }
 
     max_cell_ = topology.n();
@@ -298,7 +404,7 @@ class LinearPrimitive3d : public BasePrimitive {
     for (size_t k = 0; k < topology.n(); k++) {
       // check if this element is visible wrt to the plane
       // i.e. if there is at least one pair of vertices on opposite sides
-      if (plane) {
+      if (view) {
         int side = 0;
         for (int i = 0; i < T::n_vertices; i++) {
           vec3f p{0, 0, 0};
@@ -478,6 +584,7 @@ class MeshScene : public wings::Scene {
     add_topology("Tetrahedra", mesh_.tetrahedra());
     //    add_topology("Prisms", mesh_.prisms());
     //    add_topology("Pyramids", mesh_.pyramids());
+    add_topology("Pentatopes", mesh_.pentatopes());
     int ming = *std::min_element(groups_.begin(), groups_.end());
     int maxg = *std::max_element(groups_.begin(), groups_.end());
     LOGF("Found {} groups, min = {}, max = {}", groups_.size(), ming, maxg);
@@ -733,9 +840,10 @@ class MeshScene : public wings::Scene {
           }
           updated = true;
         } else if (input.key == 'x') {
-          bvh_->clear();
-          for (auto& prim : primitives_) prim->write(&view.plane);
-          bvh_->build();
+          // TODO update BVH
+          // bvh_->clear();
+          for (auto& prim : primitives_) prim->write(&view);
+          // bvh_->build();
           updated = true;
         } else if (input.key == 'C') {  // colormap change
           change_colormap(input.svalue);
@@ -772,8 +880,6 @@ class MeshScene : public wings::Scene {
           // just so it doesn't disappear at +1 or -1 due to precision
           if (d == 1.0f) d = 0.9999f;
           if (d == -1.0f) d = -0.9999f;
-
-          // scale to [-aabb.min, aabb.max]
           view.hypercenter = {0, 0, 0, 0};
           float l = xmax_[view.hyperdir] - xmin_[view.hyperdir];
           view.hypercenter[view.hyperdir] =
@@ -844,8 +950,9 @@ class MeshScene : public wings::Scene {
       if (!view.active[primitive.name()]) continue;
 
       // select shader by primitive type and field order
-      const std::string prefix =
+      std::string prefix =
           (primitive.name() == "Tetrahedra" && dim == 4) ? "tet" : "triangles";
+      if (primitive.name() == "Pentatopes") prefix = "tet";
       const std::string name = prefix + "-" + std::to_string(dim) + "d-q1-p0";
       ShaderProgram& shader = shaders_[name];
       shader.use();
@@ -913,6 +1020,9 @@ class MeshScene : public wings::Scene {
       view.center_translation(d, 3) = view.center[d];
       view.inverse_center_translation(d, 3) = -view.center[d];
     }
+    view.hyperdir = 3;
+    view.hypercenter = {0, 0, 0, 0};
+    view.hypercenter[view.hyperdir] = xmin_[view.hyperdir];
 
     view.model_matrix.eye();
     vec3f up{0, 1, 0};
@@ -972,6 +1082,41 @@ Viewer::Viewer(const Mesh& mesh, int port) {
 
 Viewer::~Viewer() {}
 
+void extract_tetrahedra(Mesh& mesh) {
+  absl::flat_hash_set<PentatopeFace_t> boundary_faces;
+  std::vector<PentatopeFace_t> internal_faces;
+
+  auto& tetrahedra = mesh.tetrahedra();
+  // TODO add existing tetrahedra to the boundary_faces
+
+  auto& pentatopes = mesh.pentatopes();
+
+  for (size_t k = 0; k < pentatopes.n(); k++) {
+    auto* p = pentatopes[k];
+    for (size_t j = 0; j < kPentatopesFaces.size(); j++) {
+      PentatopeFace_t tet{0, 0, 0, 0};
+      for (size_t i = 0; i < tet.size(); i++)
+        tet[i] = p[kPentatopesFaces[j][i]];
+
+      std::sort(tet.begin(), tet.end());
+      auto it = boundary_faces.find(tet);
+      if (it == boundary_faces.end()) {
+        boundary_faces.insert(tet);
+      } else {
+        boundary_faces.erase(it);
+        // internal_faces.push_back(tet);
+      }
+    }
+  }
+
+  LOGF("Extracted {} boundary tetrahedra.", boundary_faces.size());
+  LOGF("Extracted {} internal tetrahedra.", internal_faces.size());
+  tetrahedra.reserve(boundary_faces.size());
+  for (auto& tet : boundary_faces) {
+    tetrahedra.add(tet.data());
+  }
+}
+
 }  // namespace wings
 
 int main(int argc, const char** argv) {
@@ -1002,6 +1147,10 @@ int main(int argc, const char** argv) {
       auto x = mesh.vertices()[k][d];
       mesh.vertices()[k][d] = 2.0 * (x - center[d]) / lmax;
     }
+  }
+
+  if (mesh.pentatopes().n() > 0 && mesh.tetrahedra().n() == 0) {
+    extract_tetrahedra(mesh);
   }
 
   wings::Viewer viewer(mesh, ws_port);

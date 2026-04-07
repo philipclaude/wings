@@ -97,6 +97,11 @@ inline T dot(const vec<3, T>& u, const vec<3, T>& v) {
 }
 
 template <typename T>
+inline T dot(const vec<4, T>& u, const vec<4, T>& v) {
+  return u[0] * v[0] + u[1] * v[1] + u[2] * v[2] + u[3] * v[3];
+}
+
+template <typename T>
 inline vec<3, T> cross(const vec<3, T>& u, const vec<3, T>& v) {
   return {u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2],
           u[0] * v[1] - u[1] * v[0]};

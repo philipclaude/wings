@@ -28,7 +28,6 @@ class Mesh;
 
 namespace meshb {
 void read(const std::string& filename, Mesh& mesh);
-void write(const Mesh& mesh, const std::string& filename, bool twod = false);
 }  // namespace meshb
 
 namespace obj {
