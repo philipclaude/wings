@@ -2,7 +2,7 @@
 
 `wings` is a web interface for graphics applications. It is primarily intended for server-side rendering of meshes and solution fields for scientific applications, in which a mesh might be stored on a remote cluster or a cloud virtual machine (e.g. using GCP or AWS).
 
-`wings` directly manages `OpenGL` contexts and handles sharing contexts between threads. There is no dependency on an `OpenGL` function loader (such as `glad`) or a window or event manager (such as `GLFW`). It may be possible to support `Vulkan` in the future (the design of the rendering context structure supports this), but I have no experience developing with `Vulkan` yet so there are no examples here (please feel free to contribute with a pull request!). There is some initial support for directly serving the client HTML pages using a TCP server, however, this needs to be tested further. I recommend opening the client HTML pages locally for now, or open the pages which are hosted on GitHub Pages, for example, https://philipclaude.github.io/wings/app/.
+`wings` directly manages `OpenGL` contexts and handles sharing contexts between threads. There is no dependency on an `OpenGL` function loader (such as `glad`) or a window or event manager (such as `GLFW`). It may be possible to support `Vulkan` in the future (the design of the rendering context structure supports this), but I have no experience developing with `Vulkan` yet so there are no examples here (please feel free to contribute with a pull request!). There is some initial support for directly serving the client HTML pages using a TCP server, however, this needs to be tested further. I recommend opening the client HTML pages locally for now, or open the pages which are hosted on GitHub Pages, for example, https://philipclaude.github.io/wings/.
 
 The `app` directory contains the main application for rendering 3d and 4d meshes. The `util` directory also contains some utilities for creating new applications. A minimal example application is provided in the `example` directory.
 
@@ -45,7 +45,7 @@ The utilities and sample applications require a few external repositories for IO
 
 4. Connect to the server by opening `wings/example/index.html` and you should see an icosahedron. Click and drag the mouse to rotate the mesh!
 
-Alternatively, you can try out the more complete hybrid mesh viewer by running `bin/wings [filename]` and opening `wings/app/index.html` (or https://philipclaude.github.io/wings/app/).
+Alternatively, you can try out the more complete hybrid mesh viewer by running `bin/wings [filename]` and opening `wings/app/index.html` (or https://philipclaude.github.io/wings/).
 
 #### **How `wings` works**
 
