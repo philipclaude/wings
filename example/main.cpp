@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2026 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -700,7 +700,7 @@ int main(int argc, const char** argv) {
 
   wings::MeshScene scene(mesh);
   wings::RenderingServer renderer(scene, ws_port);
-  if (tcp_port > 0) renderer.start("../apps/awing/index.html", tcp_port);
+  if (tcp_port > 0) renderer.start("../app/index.html", tcp_port);
 
   return 0;
 }

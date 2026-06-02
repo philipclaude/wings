@@ -540,7 +540,7 @@ class ShaderLibrary2 {
 class MeshScene : public wings::Scene {
  public:
   MeshScene(const Mesh& mesh)
-      : mesh_(mesh), shaders_(std::string(WINGS_SOURCE_DIR) + "/apps/wings/") {
+      : mesh_(mesh), shaders_(std::string(WINGS_SOURCE_DIR) + "/app/") {
     context_ =
         wings::RenderingContext::create(wings::RenderingContextType::kOpenGL);
     context_->print();
