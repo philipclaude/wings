@@ -35,10 +35,6 @@
 
 namespace wings {
 
-using PentatopeFace_t = std::array<index_t, 4>;
-std::vector<PentatopeFace_t> kPentatopesFaces = {
-    {0, 1, 2, 3}, {0, 2, 3, 4}, {0, 1, 3, 4}, {0, 1, 2, 4}, {1, 2, 3, 4}};
-
 enum TextureIndex {
   POINT_TEXTURE = 0,
   NORMAL_TEXTURE = 1,
@@ -68,10 +64,10 @@ struct ClientView {
   double x{0}, y{0};
   GLuint vertex_array;
   std::unordered_map<std::string, bool> active = {
-      {"Points", false},    {"Nodes", true},     {"Lines", false},
-      {"Triangles", true},  {"Quads", true},     {"Polygons", true},
-      {"Tetrahedra", true}, {"Prisms", false},   {"Pyramids", false},
-      {"Polyhedra", false}, {"Pentatopes", true}};
+      {"Points", false},    {"Nodes", true},      {"Lines", false},
+      {"Triangles", true},  {"Quads", true},      {"Polygons", true},
+      {"Tetrahedra", true}, {"Prisms", false},    {"Pyramids", false},
+      {"Polyhedra", false}, {"Pentatopes", false}};
   int show_wireframe{1};
   float transparency{1.0};
   int lighting{1};
@@ -85,6 +81,8 @@ struct ClientView {
   float far{100};
   bool interactive{false};
   bool hover_highlight{false};
+  int selected_group{-1};
+  int selected_cell{-1};
 };
 
 class BasePrimitive {
@@ -266,7 +264,7 @@ class LinearPrimitive4d : public BasePrimitive {
     }
 
     // extract the tetrahedra
-    absl::flat_hash_map<PentatopeFace_t, size_t> faces;
+    absl::flat_hash_map<PentatopeFace_t, std::pair<size_t, int>> faces;
     for (size_t k = 0; k < intersected.size(); k++) {
       auto* p = pentatopes[intersected[k]];
       for (size_t j = 0; j < kPentatopesFaces.size(); j++) {
@@ -277,7 +275,7 @@ class LinearPrimitive4d : public BasePrimitive {
         std::sort(tet.begin(), tet.end());
         auto it = faces.find(tet);
         if (it == faces.end()) {
-          faces.insert({tet, intersected[k]});
+          faces.insert({tet, {intersected[k], j}});
         } else {
           faces.erase(it);
         }
@@ -287,11 +285,15 @@ class LinearPrimitive4d : public BasePrimitive {
          intersected.size());
 
     // write the index data
+    auto& bvh = static_cast<BoundingVolumeHierarchy<BVHTet>&>(bvh_);
     std::vector<GLuint> indices(faces.size() * Tet::n_vertices);
     std::vector<GLuint> cell(faces.size(), 0);
     size_t m = 0;
-    for (const auto& [tet, c] : faces) {
-      cell[m] = c;
+    for (const auto& [tet, cell_face] : faces) {
+      cell[m] = cell_face.first;
+      int face = cell_face.second;
+      BVHTet bvh_tet(mesh_, cell[m], -face - 1);
+      bvh.add(bvh_tet);
       for (int i = 0; i < Tet::n_vertices; i++)
         indices[Tet::n_vertices * m + i] = tet[i];
       m++;
@@ -436,7 +438,8 @@ class LinearPrimitive3d : public BasePrimitive {
           }
           if (dim == 2) points.push_back(0.0);
         }
-        bvh.add(triangle, k, topology.group(k));
+        BVHTriangle t(triangle, k, topology.group(k));
+        bvh.add(t);
       }
     }
     points.shrink_to_fit();
@@ -554,6 +557,9 @@ class MeshScene : public wings::Scene {
       bvh_ = std::make_unique<BoundingVolumeHierarchy<BVHTet>>(&mesh_);
       auto* bvh_4d = static_cast<BoundingVolumeHierarchy<BVHTet>*>(bvh_.get());
       for (size_t k = 0; k < mesh_.tetrahedra().n(); k++) {
+        int group = mesh_.tetrahedra().group(k);
+        if (group < 0) group = 0;
+        ASSERT(group >= 0);
         BVHTet tet(mesh_, k, mesh_.tetrahedra().group(k));
         bvh_4d->add(tet);
       }
@@ -735,12 +741,12 @@ class MeshScene : public wings::Scene {
           if (view.hover_highlight) {
             auto ixn = raycast(view, input.x, input.y);
             if (ixn.elem) {
-              selected_group_ = ixn.elem->group();
-              selected_cell_ = ixn.elem->cell();
+              view.selected_group = ixn.elem->group();
+              view.selected_cell = ixn.elem->cell();
               updated = true;
             } else {
-              selected_group_ = -1;
-              selected_cell_ = -1;
+              view.selected_group = -1;
+              view.selected_cell = -1;
             }
           }
         }
@@ -751,17 +757,18 @@ class MeshScene : public wings::Scene {
       case wings::InputType::DoubleClick: {
         auto ixn = raycast(view, input.x, input.y);
         if (ixn.elem) {
-          selected_group_ = ixn.elem->group();
-          selected_cell_ = ixn.elem->cell();
-          std::string info = fmt::format("*Picked cell {} in group {}",
-                                         selected_cell_, selected_group_);
+          view.selected_group = ixn.elem->group();
+          view.selected_cell = ixn.elem->cell();
+          std::string info =
+              fmt::format("*Picked cell {} in group {}", view.selected_cell,
+                          view.selected_group);
           LOG << info;
           *msg = info;
           view.picked = ixn.elem;
           updated = true;
         } else {
-          selected_group_ = -1;
-          selected_cell_ = -1;
+          view.selected_group = -1;
+          view.selected_cell = -1;
         }
         updated = true;
         break;
@@ -780,6 +787,8 @@ class MeshScene : public wings::Scene {
           view.active["Triangles"] = input.ivalue > 0;
         else if (input.key == 'T')
           view.active["Tetrahedra"] = input.ivalue > 0;
+        else if (input.key == 'V')
+          view.active["Pentatopes"] = input.ivalue > 0;
         else if (input.key == 'p')
           view.active["Polygons"] = input.ivalue > 0;
         else if (input.key == 'y')
@@ -840,10 +849,9 @@ class MeshScene : public wings::Scene {
           }
           updated = true;
         } else if (input.key == 'x') {
-          // TODO update BVH
-          // bvh_->clear();
+          bvh_->clear();
           for (auto& prim : primitives_) prim->write(&view);
-          // bvh_->build();
+          bvh_->build();
           updated = true;
         } else if (input.key == 'C') {  // colormap change
           change_colormap(input.svalue);
@@ -857,9 +865,9 @@ class MeshScene : public wings::Scene {
         } else if (input.key == 'h') {
           view.hover_highlight = !view.hover_highlight;
         } else if (input.key == 's') {
-          if (selected_group_ >= 0) {
-            hidden_[selected_group_] = true;
-            hidden_order_.push_back(selected_group_);
+          if (view.selected_group >= 0) {
+            hidden_[view.selected_group] = true;
+            hidden_order_.push_back(view.selected_group);
             write_hidden();
             updated = true;
           }
@@ -868,7 +876,7 @@ class MeshScene : public wings::Scene {
             int last = hidden_order_.back();
             LOGF("Show {}", last);
             hidden_order_.pop_back();
-            selected_group_ = -1;
+            view.selected_group = -1;
             hidden_[last] = false;
             write_hidden();
             updated = true;
@@ -989,8 +997,18 @@ class MeshScene : public wings::Scene {
       shader.set_uniform("u_umax", 1.0f);
       shader.set_uniform("u_width", view.canvas.width);
       shader.set_uniform("u_height", view.canvas.height);
-      shader.set_uniform("u_selected_group", selected_group_);
-      shader.set_uniform("u_selected_cell", selected_cell_);
+      shader.set_uniform("u_selected_group", view.selected_group);
+      shader.set_uniform("u_selected_cell", view.selected_cell);
+
+      if (view.plane.active && primitive.name() != "Pentatopes") {
+        vec3f point3d, normal3d;
+        view.plane.get(point3d, normal3d);
+        shader.set_uniform("u_clip_active", 1);
+        shader.set_uniform("u_clip_center", point3d);
+        shader.set_uniform("u_clip_normal", normal3d);
+      } else {
+        shader.set_uniform("u_clip_active", 0);
+      }
 
       primitive.draw(shader, view);
     }
@@ -1061,8 +1079,6 @@ class MeshScene : public wings::Scene {
   std::unique_ptr<BoundingVolumeHierarchyBase> bvh_;
   std::vector<bool> hidden_;
   std::vector<int> hidden_order_;
-  int selected_group_{-1};
-  int selected_cell_{-1};
 };
 
 class Viewer {

@@ -17,6 +17,10 @@ uniform vec4 u_hyperplane_center;
 uniform vec4 u_hyperplane_normal;
 uniform mat4 u_BasisProjectionMatrix;
 
+uniform vec3 u_clip_center;
+uniform vec3 u_clip_normal;
+uniform int u_clip_active;
+
 // inputs
 flat in int[] v_id;
 
@@ -32,7 +36,23 @@ layout (triangle_strip , max_vertices = 6) out;
 
 #define LARGE_DISTANCE 1000000
 
+float planedot3(in vec3 p) {
+  return dot(u_clip_center - p, u_clip_normal);
+}
+
+int side3(in float dp) {
+  return int(sign(dp));
+  //return (dp <= 0) ? 0 : 1;
+}
+
 void make_triangle(vec3 x0 , vec3 x1 , vec3 x2, int d0, int d1, int d2, int cell_id, int group_id) {
+
+  if (u_clip_active > 0) {
+    int s0 = side3(planedot3(x0));
+    int s1 = side3(planedot3(x1));
+    int s2 = side3(planedot3(x2));
+    if (s0 + s1 + s2 != 3) return;
+  }
 
   vec2 viewport = vec2(u_width, u_height);
 

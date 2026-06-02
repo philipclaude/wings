@@ -83,6 +83,9 @@ struct Pentatope {
   static int faces[20];
   typedef Tet face_type;
 };
+using PentatopeFace_t = std::array<int, 4>;
+static std::array<PentatopeFace_t, 5> kPentatopesFaces = {
+    {{0, 1, 2, 3}, {0, 2, 3, 4}, {0, 1, 3, 4}, {0, 1, 2, 4}, {1, 2, 3, 4}}};
 
 struct Prism {
   static const int dimension = 3;

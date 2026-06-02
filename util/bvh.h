@@ -93,17 +93,6 @@ class BVHTet : public BVHLeafBase {
  public:
   static constexpr int N = 4;
   static constexpr int dim = 4;
-  BVHTet(const std::array<vec4f, 4>& tet, uint32_t cell, int group)
-      : BVHLeafBase(cell, group) {
-    vec4f min, max;
-    for (int d = 0; d < dim; d++) {
-      min[d] = std::min(std::min(std::min(tet[0][d], tet[1][d]), tet[2][d]),
-                        tet[3][d]);
-      max[d] = std::max(std::max(std::max(tet[0][d], tet[1][d]), tet[2][d]),
-                        tet[3][d]);
-    }
-    box_ = AABB<dim>(min, max);
-  }
 
   BVHTet(const Mesh& mesh, uint32_t cell, int group);
 
@@ -158,10 +147,6 @@ class BoundingVolumeHierarchy : public BoundingVolumeHierarchyBase {
   using vecf = vec<dim, float>;
   BoundingVolumeHierarchy(const Mesh* mesh = nullptr) : mesh_(mesh) {}
 
-  void add(const std::array<vecf, BVHLeaf::N>& elem, uint32_t cell, int group) {
-    leaves_.emplace_back(elem, cell, group);
-  }
-
   void add(BVHLeaf leaf) { leaves_.push_back(leaf); }
 
   void build() {
@@ -214,6 +199,8 @@ class BoundingVolumeHierarchy : public BoundingVolumeHierarchyBase {
   void clear() {
     nodes_.clear();
     leaves_.clear();
+    threads_.clear();
+    root_ = 0;
   }
 
   Intersection intersect(const Ray<dim>& ray,

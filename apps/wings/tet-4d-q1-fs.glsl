@@ -64,7 +64,7 @@ void main() {
 
   float alpha = u_alpha;
   vec3 color = m_constant * color_constant + m_group * color_group + m_cell * color_cell + m_field * color_field;
-  if (v_Group == u_selected_group && v_CellNumber == u_selected_cell) {
+  if (v_CellNumber == u_selected_cell) {
     color = vec3(0, 0, 1);
     intensity = 0;
     alpha = 0.5;
