@@ -571,7 +571,7 @@ bool MeshScene::render(const ClientInput& input, int client_idx,
     case InputType::MouseMotion: {
       if (input.dragging) {
         double dx = (view.x - input.x) / view.canvas.width;
-        double dy = (view.y - input.y) / view.canvas.height;
+        double dy = -(view.y - input.y) / view.canvas.height;
         mat4f R = view.center_translation * glm::rotation(dx, dy) *
                   view.inverse_center_translation;
         view.model_matrix = R * view.model_matrix;
