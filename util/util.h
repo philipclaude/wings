@@ -167,31 +167,6 @@ class AABB {
 
 struct GLClipPlane;
 
-struct PickableObject {
-  template <typename T>
-  PickableObject(const Vertices& vertices, const Topology<T>& topology,
-                 uint64_t k, const std::string& name);
-
-  template <typename T>
-  void save_points(const Vertices& vertices, const Topology<T>& topology,
-                   uint64_t k);
-
-  double intersection(const vec3f& point, const vec3f& ray,
-                      const mat4f& model_matrix) const;
-  double intersection(int k, const vec3f& point, const vec3f& ray,
-                      const mat4f& model_matrix) const;
-
-  int n_triangles() const { return triangles.size() / 3; }
-
-  bool visible(const GLClipPlane& plane) const;
-
-  std::string name;
-  std::vector<vec4f> points;
-  std::vector<uint64_t> triangles;
-  std::vector<uint64_t> nodes;
-  uint64_t index;
-};
-
 struct GLClipPlane {
   GLClipPlane();
   ~GLClipPlane();

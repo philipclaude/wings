@@ -504,9 +504,9 @@ class LinearPrimitive3d : public BasePrimitive {
   GLuint group_texture_;
 };
 
-class ShaderLibrary2 {
+class ShaderLibrary {
  public:
-  ShaderLibrary2(const std::string& base) : base_(base) {}
+  ShaderLibrary(const std::string& base) : base_(base) {}
   void create() {
     std::string version = "#version " +
                           std::to_string(WINGS360_GL_VERSION_MAJOR) +
@@ -1074,7 +1074,7 @@ class MeshScene : public wings::Scene {
   GLuint hidden_buffer_;
 
   std::vector<std::unique_ptr<BasePrimitive>> primitives_;
-  ShaderLibrary2 shaders_;
+  ShaderLibrary shaders_;
   std::set<int> groups_;  // total groups
   std::unique_ptr<BoundingVolumeHierarchyBase> bvh_;
   std::vector<bool> hidden_;
