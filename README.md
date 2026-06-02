@@ -2,9 +2,9 @@
 
 `wings` is a web interface for graphics applications. It is primarily intended for server-side rendering of meshes and solution fields for scientific applications, in which a mesh might be stored on a remote cluster or a cloud virtual machine (e.g. using GCP or AWS).
 
-`wings` directly manages `OpenGL` contexts and handles sharing contexts between threads. There is no dependency on an `OpenGL` function loader (such as `glad`) or a window or event manager (such as `GLFW`). It may be possible to support `Vulkan` in the future (the design of the rendering context structure supports this), but I have no experience developing with `Vulkan` yet so there are no examples here (please feel free to contribute with a pull request!). There is some initial support for directly serving the client HTML pages using a TCP server, however, this needs to be tested further. I recommend opening the client HTML pages locally for now, or open the pages which are hosted on GitHub Pages, for example, https://philipclaude.github.io/wings/vwing/.
+`wings` directly manages `OpenGL` contexts and handles sharing contexts between threads. There is no dependency on an `OpenGL` function loader (such as `glad`) or a window or event manager (such as `GLFW`). It may be possible to support `Vulkan` in the future (the design of the rendering context structure supports this), but I have no experience developing with `Vulkan` yet so there are no examples here (please feel free to contribute with a pull request!). There is some initial support for directly serving the client HTML pages using a TCP server, however, this needs to be tested further. I recommend opening the client HTML pages locally for now, or open the pages which are hosted on GitHub Pages, for example, https://philipclaude.github.io/wings/app/.
 
-The `apps` directory contains sample applications that use `wings`. Some programs are introductory examples (such as `xwing`) whereas others are relatively feature-complete visualization tools (such as `vwing`). Please see the sections below for a more complete description of each application. The `util` directory also contains some utilities for creating new applications.
+The `app` directory contains the main application for rendering 3d and 4d meshes. The `util` directory also contains some utilities for creating new applications. A minimal example application is provided in the `example` directory.
 
 When running `wings` applications on a remote server, remember to forward the port on which the WebSocket server is listening (the `wings` default port is usually 7681). I often use Visual Studio Code to develop remotely (using the Remote SSH Extension) and VS Code has a nice feature for forwarding a port.
 
@@ -24,7 +24,8 @@ The utilities and sample applications require a few external repositories for IO
 
 - `fmtlib`: https://github.com/fmtlib/fmt
 - `tinyobjloader`: https://github.com/tinyobjloader/tinyobjloader
-- `libMeshb`: https://github.com/LoicMarechal/libMeshb
+- `libMeshb`: https://github.com/philipclaude/libMeshb (forked from https://github.com/LoicMarechal/libMeshb which adds 4d mesh support)
+- `abseil`: https://github.com/abseil/abseil-cpp
 
 #### **Quickstart**
 
@@ -38,13 +39,13 @@ The utilities and sample applications require a few external repositories for IO
    - `$ cd wings/build && cmake ../`
    - `$ make`
 
-3. Run the example program (`xwing`):
+3. Run the example program:
 
-   - `$ bin/xwing`
+   - `$ bin/wings_example`
 
-4. Connect to the server by opening `wings/apps/xwing/index.html` and you should see an icosahedron. Click and drag the mouse to rotate the mesh!
+4. Connect to the server by opening `wings/example/index.html` and you should see an icosahedron. Click and drag the mouse to rotate the mesh!
 
-Alternatively, you can try out the more complete hybrid mesh viewer by running `bin/vwing` and opening `wings/apps/vwing/index.html` (or https://philipclaude.github.io/wings/vwing/).
+Alternatively, you can try out the more complete hybrid mesh viewer by running `bin/wings [filename]` and opening `wings/app/index.html` (or https://philipclaude.github.io/wings/app/).
 
 #### **How `wings` works**
 
@@ -56,7 +57,7 @@ Alternatively, you can try out the more complete hybrid mesh viewer by running `
 
 Depending on the message, the server will respond with a JPEG-encoded representation of the pixels in the image to display in the browser. The quality of the image can be adjusted to speed up message delivery, which can be useful when the view is being manipulated over slower connections.
 
-Please note that `wings` was specifically designed in this way to reduce latency when sending an image over a network. A more natural communication method would consist of using JSON or protocol buffers to represent server messages, however, the server will almost always respond with an image, so the overhead caused by encoding/decoding the image from another format didn't seem worth it. Note that the JPEG image is encoded in `base64`, so if you want to send something other than an image from the server, you can use any non-`base64` character as the first character in the response and subsequently detect that character in the client code. For example, `*` is a non-`base64` character and is used in the `apps/vwing` application to print text messages in the browser.
+Please note that `wings` was specifically designed in this way to reduce latency when sending an image over a network. A more natural communication method would consist of using JSON or protocol buffers to represent server messages, however, the server will almost always respond with an image, so the overhead caused by encoding/decoding the image from another format didn't seem worth it. Note that the JPEG image is encoded in `base64`, so if you want to send something other than an image from the server, you can use any non-`base64` character as the first character in the response and subsequently detect that character in the client code. For example, `*` is a non-`base64` character and is used in the main `wings` application to print text messages in the browser.
 
 It would also be possible to encode the client messages using JSON or protocol buffers, but that adds a dependency (and I tend to avoid using dependencies unless absolutely necessary).
 
@@ -74,7 +75,7 @@ On the server-side, you will need to define a class that inherits from the `Scen
 
 You can then create a `RenderingServer` which accepts a derived `Scene` object and WebSocket port number.
 
-On the client side, you need to (1) create a `img` HTML element and (2) create a WebSocket connection handler. The `src` attribute of the `img` element can be assigned to the event data when the WebSocket handler receives a message from the server (the `onmessage` callback). You can then send messages to your specialized `Scene` using the `send` function of your WebSocket connection (using the message conventions described above). I recommend inspecting the `apps/xwing` source for a complete example.
+On the client side, you need to (1) create a `img` HTML element and (2) create a WebSocket connection handler. The `src` attribute of the `img` element can be assigned to the event data when the WebSocket handler receives a message from the server (the `onmessage` callback). You can then send messages to your specialized `Scene` using the `send` function of your WebSocket connection (using the message conventions described above). I recommend inspecting the `example` source for a complete example.
 
 #### **Reminders**
 
@@ -82,19 +83,25 @@ Note that `OpenGL` contexts can share resources such as buffers and textures but
 
 ### **Sample applications**
 
-#### **`xwing`**: example wing viewer
+#### Example program (in the `example` directory).
 
-This is a minimal, self-contained example that includes everything needed to set up a view and rotate a model when clicking (a lot of the code for manipulating vectors and matrices in the `util` directory is duplicated). By default, `xwing` will load and render an icosahedron, but a `.obj` file can also be passed as the second argument, which will load the triangulation with `tinyobjloader`.
+This is a minimal, self-contained example that includes everything needed to set up a view and rotate a model when clicking (a lot of the code for manipulating vectors and matrices in the `util` directory is duplicated). By default, `wings_example` will load and render an icosahedron, but a `.obj` file can also be passed as the second argument, which will load the triangulation with `tinyobjloader`.
 
-#### **`vwing`**: hybrid mesh viewer
+#### Complete **`wings`** application (in the `app` directory).
 
-This is a more complete program for rendering mixed-element meshes consisting of lines, triangles, quads, polygons, tetrahedra, prisms, pyramids and polyhedra. `vwing` also sets up a few default "fields" (attributes) corresponding to the element group number (or reference) or the cell id. You can cycle through the available fields by pressing the `f` key. `vwing` supports clipping planes as well as element "picking" and prints a message in the browser with the picked element information. After picking an element, you can press `c` to center the view on the picked element.
+This is a more complete program for rendering mixed-element meshes consisting of lines, triangles, quads, tetrahedra and pentatopes. `wings` also sets up a few default fields corresponding to the element group number (or reference) or the cell id. You can cycle through the available fields by pressing the `f` key. The main `wings` program supports clipping planes as well as element "picking" and prints a message with the picked element information. After picking an element, you can press `c` to center the view on the picked element.
+
+Details about the 4d visualization pipeline are provided in [this paper](https://www.sciencedirect.com/science/article/pii/S0010448524001192).
+
+As of June 2026, prism, pyramid, polygon and polyhedron support has been removed but will be added again in the future.
+
+Visualizing fields from `.solb` files will also be implemented in the near future.
 
 #### **License**
 
-All `wings` source code (`wings.h`, `wings.cpp` as well as all `C++`, `HTML`, `JavaScript` and `GLSL` code for the apps) is distributed under the Apache-2.0 License.
+All `wings` source code (`wings.h`, `wings.cpp` as well as all `C++`, `HTML`, `JavaScript` and `GLSL` code for the applications) is distributed under the Apache-2.0 License.
 
-Copyright 2023 Philip Claude Caplan
+Copyright 2023 - 2026 Philip Claude Caplan
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
