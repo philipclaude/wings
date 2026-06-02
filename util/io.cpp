@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2026 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <map>
 #include <unordered_set>
 

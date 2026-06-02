@@ -89,7 +89,6 @@ if (${WINGS_BUILD_UTIL})
 	# add all the source files
 	set(SOURCES
 	util/bvh.cpp
-	util/field.cpp
 	util/log.cpp
 	util/mesh.cpp
 	util/shader.cpp
@@ -127,18 +126,13 @@ if (${WINGS_BUILD_APPS})
 	add_library(wings_io_src OBJECT util/io.cpp)
 	target_link_libraries(wings_io_src Meshb.7 tinyobjloader)
 
-	# xwing (example)
-	add_executable(xwing apps/xwing/main.cpp)
-	target_link_libraries(xwing wings tinyobjloader)
-	set_property(TARGET xwing PROPERTY CXX_STANDARD 17)
-
-	# vwing
-	#add_executable(vwing apps/vwing/main.cpp)
-	#target_link_libraries(vwing wings_util_static wings_io_src wings dl)
-	#target_compile_definitions(vwing PUBLIC -DWINGS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+	# example program
+	add_executable(wings_example example/main.cpp)
+	target_link_libraries(wings_example wings tinyobjloader)
+	set_property(TARGET wings_example PROPERTY CXX_STANDARD 17)
 
 	# wings main program
-	add_executable(wings_exe apps/wings/main.cpp)
+	add_executable(wings_exe app/main.cpp)
 	set_property(TARGET wings_exe PROPERTY OUTPUT_NAME wings)
 	target_link_libraries(wings_exe wings_util_static wings_io_src wings dl absl::flat_hash_set)
 	target_compile_definitions(wings_exe PUBLIC -DWINGS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")

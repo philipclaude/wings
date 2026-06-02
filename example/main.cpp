@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2026 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -571,7 +571,7 @@ bool MeshScene::render(const ClientInput& input, int client_idx,
     case InputType::MouseMotion: {
       if (input.dragging) {
         double dx = (view.x - input.x) / view.canvas.width;
-        double dy = (view.y - input.y) / view.canvas.height;
+        double dy = -(view.y - input.y) / view.canvas.height;
         mat4f R = view.center_translation * glm::rotation(dx, dy) *
                   view.inverse_center_translation;
         view.model_matrix = R * view.model_matrix;
@@ -700,7 +700,7 @@ int main(int argc, const char** argv) {
 
   wings::MeshScene scene(mesh);
   wings::RenderingServer renderer(scene, ws_port);
-  if (tcp_port > 0) renderer.start("../apps/awing/index.html", tcp_port);
+  if (tcp_port > 0) renderer.start("../../example/index.html", tcp_port);
 
   return 0;
 }

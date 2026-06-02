@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2026 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -179,48 +179,6 @@ void ShaderProgram::set_uniform(const char* name, const mat4f& m) const {
   GLint location = glGetUniformLocation(handle_, name);
   if (location >= 0)
     GL_CALL(glUniformMatrix4fv(location, 1, GL_FALSE, &m(0, 0)));
-}
-
-void ShaderLibrary::create() {
-  std::string version = "#version " +
-                        std::to_string(WINGS360_GL_VERSION_MAJOR) +
-                        std::to_string(WINGS360_GL_VERSION_MINOR) + "0";
-  add("points", "points", false, false, {version, "#define WITH_GS 0"});
-  add("nodes", "points", true, false, {version, "#define WITH_GS 1"});
-  add("edges-q1-p0", "edges", true, false, {version, "#define ORDER 0"});
-  add("triangles-q1-p0", "triangles", true, false,
-      {version, "#define ORDER 0"});
-  add("triangles-q1-p1", "triangles", true, false,
-      {version, "#define ORDER 1"});
-  add("triangles-q1-pt", "triangles", true, false,
-      {version, "#define ORDER -1"});
-  add("quads-q1-p0", "quads", true, false, {version, "#define ORDER 0"});
-  add("quads-q1-p1", "quads", true, false, {version, "#define ORDER 1"});
-  add("quads-q1-pt", "quads", true, false, {version, "#define ORDER -1"});
-  add("polygons-q1-p0", "polygons", true, false, {version, "#define ORDER 0"});
-  add("prisms-q1-p0", "prisms", true, false, {version, "#define ORDER 0"});
-  add("prisms-q1-p1", "prisms", true, false, {version, "#define ORDER 1"});
-  add("pyramids-q1-p0", "pyramids", true, false, {version, "#define ORDER 0"});
-  add("pyramids-q1-p1", "pyramids", true, false, {version, "#define ORDER 1"});
-  add("tetrahedra-q1-p0", "tet", true, false, {version, "#define ORDER 0"});
-  add("tetrahedra-q1-p1", "tet", true, false, {version, "#define ORDER 1"});
-  add("polyhedra-q1-p0", "polygons", true, false,
-      {version, "#define POLYHEDRA"});
-  add("text", "text", true, false, {version});
-}
-
-void ShaderLibrary::add(const std::string& name, const std::string& prefix,
-                        bool with_geometry, bool with_tessellation,
-                        const std::vector<std::string>& macros) {
-  shaders_.insert({name, ShaderProgram()});
-  shaders_[name].set_source(base_, prefix, with_geometry, with_tessellation,
-                            macros);
-}
-
-const ShaderProgram& ShaderLibrary::operator[](const std::string& name) const {
-  WINGS_ASSERT(shaders_.find(name) != shaders_.end())
-      << "could not find shader " << name;
-  return shaders_.at(name);
 }
 
 }  // namespace wings

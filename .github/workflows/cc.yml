@@ -17,18 +17,18 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: install
+    - name: Install
       run: |
         sudo apt-get update -qq
         sudo apt-get install -y --no-install-recommends libgl1-mesa-dev
 
-    - name: configure
+    - name: Configure
       run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} .
 
-    - name: build
+    - name: Build
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
-    - name: format
+    - name: Format
       uses: cpp-linter/cpp-linter-action@v2
       id: linter
       env:
@@ -36,7 +36,7 @@ jobs:
       with:
         style: file
 
-    - name: check failure
+    - name: Check failure
       if: steps.linter.outputs.checks-failed > 0
       run: |
         echo "Some files failed the linting checks!"

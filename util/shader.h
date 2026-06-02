@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2026 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -48,22 +48,6 @@ class ShaderProgram {
  private:
   int handle_{-1};
   std::vector<std::string> macros_;
-};
-
-class ShaderLibrary {
- public:
-  ShaderLibrary(const std::string& base) : base_(base) {}
-  void create();
-
-  void add(const std::string& name, const std::string& prefix,
-           bool with_geometry, bool with_tessellation,
-           const std::vector<std::string>& macros = {});
-
-  const ShaderProgram& operator[](const std::string& name) const;
-
- private:
-  std::string base_;
-  std::map<std::string, ShaderProgram> shaders_;
 };
 
 }  // namespace wings

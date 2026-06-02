@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2026 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -37,11 +37,11 @@ Exception::~Exception() noexcept(false) {
 std::string Exception::get_backtrace(int start_frame) {
   int i;
   enum { MAX_DEPTH = 50 };
-  void *trace[MAX_DEPTH];
-  char *demangled;
+  void* trace[MAX_DEPTH];
+  char* demangled;
   int trace_size, status = 0;
   Dl_info dlinfo;
-  const char *symname;
+  const char* symname;
 
   std::string message = "\n";
 

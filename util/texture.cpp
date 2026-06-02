@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2026 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -39,22 +39,22 @@
 
 // TODO move these to header file
 extern "C" {
-unsigned char *stbi_load(char const *filename, int *x, int *y,
-                         int *channels_in_file, int desired_channels);
-void stbi_image_free(void *retval_from_stbi_load);
-int stbi_write_jpg(char const *filename, int x, int y, int comp,
-                   const void *data, int quality);
+unsigned char* stbi_load(char const* filename, int* x, int* y,
+                         int* channels_in_file, int desired_channels);
+void stbi_image_free(void* retval_from_stbi_load);
+int stbi_write_jpg(char const* filename, int x, int y, int comp,
+                   const void* data, int quality);
 void stbi_set_flip_vertically_on_load(int flag);
 }
 
 namespace wings {
 
-Texture::Texture(const std::string &filename, TextureOptions options)
+Texture::Texture(const std::string& filename, TextureOptions options)
     : channels_(kFormat2Channels.at(options.format)) {
   read(filename, options.flipy);
 }
 
-void Texture::read(const std::string &filename, bool flipy) {
+void Texture::read(const std::string& filename, bool flipy) {
   // From the stb documentation (N is the number of desired channels):
   // An output image with N components has the following components interleaved
   // in this order in each pixel:
@@ -65,7 +65,7 @@ void Texture::read(const std::string &filename, bool flipy) {
   //       3           red, green, blue
   //       4           red, green, blue, alpha
   int n;
-  unsigned char *pixels;
+  unsigned char* pixels;
   stbi_set_flip_vertically_on_load(flipy);
   pixels = stbi_load(filename.c_str(), &width_, &height_, &n, channels_);
   ASSERT(pixels);
