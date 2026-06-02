@@ -70,7 +70,8 @@ void Topology<T>::append_edges(std::vector<Edge>& edges) const {
   }
 }
 
-template <> void Topology<Triangle>::flip_orientation() {
+template <>
+void Topology<Triangle>::flip_orientation() {
   for (size_t k = 0; k < n(); k++) {
     index_t t1 = (*this)(k, 1);
     index_t t2 = (*this)(k, 2);
@@ -86,31 +87,63 @@ void Mesh::get_edges(std::vector<Edge>& edges) const {
   polygons_.append_edges(edges);
 }
 
-template <> const Topology<Triangle>& Mesh::get<Triangle>() const {
+template <>
+const Topology<Triangle>& Mesh::get<Triangle>() const {
   return triangles_;
 }
 
-template <> Topology<Triangle>& Mesh::get<Triangle>() { return triangles_; }
+template <>
+Topology<Triangle>& Mesh::get<Triangle>() {
+  return triangles_;
+}
 
-template <> const Topology<Polygon>& Mesh::get<Polygon>() const {
+template <>
+const Topology<Polygon>& Mesh::get<Polygon>() const {
   return polygons_;
 }
 
-template <> Topology<Polygon>& Mesh::get<Polygon>() { return polygons_; }
+template <>
+Topology<Polygon>& Mesh::get<Polygon>() {
+  return polygons_;
+}
 
-template <> const Topology<Quad>& Mesh::get<Quad>() const { return quads_; }
+template <>
+const Topology<Quad>& Mesh::get<Quad>() const {
+  return quads_;
+}
 
-template <> Topology<Quad>& Mesh::get<Quad>() { return quads_; }
+template <>
+Topology<Quad>& Mesh::get<Quad>() {
+  return quads_;
+}
 
-template <> const Topology<Tet>& Mesh::get<Tet>() const { return tetrahedra_; }
+template <>
+const Topology<Tet>& Mesh::get<Tet>() const {
+  return tetrahedra_;
+}
+template <>
+Topology<Tet>& Mesh::get<Tet>() {
+  return tetrahedra_;
+}
 
-template <> Topology<Tet>& Mesh::get<Tet>() { return tetrahedra_; }
+template <>
+const Topology<Pentatope>& Mesh::get<Pentatope>() const {
+  return pentatopes_;
+}
+template <>
+Topology<Pentatope>& Mesh::get<Pentatope>() {
+  return pentatopes_;
+}
 
-template <> const Topology<Polyhedron>& Mesh::get<Polyhedron>() const {
+template <>
+const Topology<Polyhedron>& Mesh::get<Polyhedron>() const {
   return polyhedra_;
 }
 
-template <> Topology<Polyhedron>& Mesh::get<Polyhedron>() { return polyhedra_; }
+template <>
+Topology<Polyhedron>& Mesh::get<Polyhedron>() {
+  return polyhedra_;
+}
 
 void Vertices::print() const {
   for (size_t k = 0; k < n(); k++) {

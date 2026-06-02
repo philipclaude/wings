@@ -1,7 +1,7 @@
 //
 //  wings: web interface for graphics applications
 //
-//  Copyright 2023 Philip Claude Caplan
+//  Copyright 2023 - 2026 Philip Claude Caplan
 //
 //  Licensed under the Apache License, Version 2.0 (the "License");
 //  you may not use this file except in compliance with the License.
@@ -17,21 +17,152 @@
 //
 #pragma once
 
+#include <fmt/format.h>
+
 #include <memory>
 #include <vector>
 
 #include "glm.h"
+#include "log.h"
 
 namespace wings {
 
 class Vertices;
-template <typename T> class Topology;
+template <typename T>
+class Topology;
 class ShaderProgram;
 
-struct AABB {
+static inline mat4f get_basis_projector(int d) {
+  mat4f p;
+  int row = 0;
+  for (int i = 0; i < 4; i++) {
+    if (i == d) continue;
+    p(row, i) = 1;
+    row++;
+  }
+  return p;
+}
+
+static inline mat4f get_basis_unprojector(int d) {
+  mat4f p;
+  int col = 0;
+  for (int i = 0; i < 4; i++) {
+    if (i == d) continue;
+    p(i, col) = 1;
+    col++;
+  }
+  return p;
+}
+
+static inline vec4f lift4d(const vec3f& v, int d, float val) {
+  vec4f result;
+  int row = 0;
+  for (int i = 0; i < 4; i++) {
+    if (i == d)
+      result[i] = val;
+    else
+      result[i] = v[row++];
+  }
+  return result;
+}
+
+static inline vec3f project4d(const vec4f& v, int d) {
+  vec3f result;
+  int row = 0;
+  for (int i = 0; i < 4; i++) {
+    if (i == d) continue;
+    result[row++] = v[i];
+  }
+  return result;
+}
+
+template <int dim>
+struct Ray {
+  typedef vec<dim, float> vecr;
+  Ray(vecr p, vecr r) {
+    origin = p;
+    direction = r;  // unit_vector(r);
+  }
+
+  Ray(vec3f p, vec3f r, const mat4f& m) {
+    vec4f rh = {r[0], r[1], r[2], 0};
+    vec3f dir = unit_vector((m * rh).xyz());
+    direction[dim - 1] = 0;
+    for (int i = 0; i < 3; i++) direction[i] = dir[i];
+    vec4f ph = {p[0], p[1], p[2], 1};
+    p = (m * ph).xyz();
+    for (int i = 0; i < 3; i++) origin[i] = p[i];
+  }
+
+  Ray(vec3f p, vec3f r, const mat4f& m, int hyperplane_dim,
+      float hyperplane_distance)
+      : Ray(p, r, m) {
+    assert(dim == 4);
+    mat4f q = get_basis_unprojector(hyperplane_dim);
+    origin = q * origin;
+    direction = q * direction;
+    origin[hyperplane_dim] = hyperplane_distance;
+  }
+
+  vecr origin;
+  vecr direction;
+};
+
+template <int dim>
+class AABB {
+  typedef vec<dim, float> vecb;
+
+ public:
   AABB() {}
-  vec3f min{1e20f, 1e20f, 1e20f};
-  vec3f max{-1e20f, -1e20f, -1e20f};
+  AABB(const vecb& min, const vecb& max) {
+    min_ = min;
+    max_ = max;
+    for (int d = 0; d < dim; d++) {
+      if (max_[d] - min_[d] < 1e-4f) {
+        min_[d] -= 1e-4f;
+        max_[d] += 1e-4f;
+      }
+    }
+  }
+
+  AABB(const AABB& boxl, const AABB& boxr) {
+    for (int d = 0; d < dim; d++) {
+      min_[d] = std::min(boxl.min()[d], boxr.min()[d]);
+      max_[d] = std::max(boxl.max()[d], boxr.max()[d]);
+      if (max_[d] - min_[d] < 1e-4f) {
+        min_[d] -= 1e-4f;
+        max_[d] += 1e-4f;
+      }
+    }
+  }
+
+  bool intersect(const Ray<dim>& ray, float tmin, float tmax) const {
+    for (int d = 0; d < dim; ++d) {
+      float inv_d = 1.0f / ray.direction[d];
+      if (ray.direction[d] == 0.0) continue;
+      const auto tld = std::min((min_[d] - ray.origin[d]) * inv_d,
+                                (max_[d] - ray.origin[d]) * inv_d);
+      const auto tud = std::max((min_[d] - ray.origin[d]) * inv_d,
+                                (max_[d] - ray.origin[d]) * inv_d);
+      // LOGF("d = {}, tld = {}, tud = {}", d, tld, tud);
+      tmin = std::max(tld, tmin);
+      tmax = std::min(tud, tmax);
+      if (tmax <= tmin) return false;
+    }
+    return true;
+  }
+
+  void print() const;
+
+  const auto& min() const { return min_; }
+  const auto& max() const { return max_; }
+
+  auto& min() { return min_; }
+  auto& max() { return max_; }
+
+ private:
+  vecb min_;
+  vecb max_;
 };
 
 struct GLClipPlane;
@@ -67,7 +198,7 @@ struct GLClipPlane {
 
   void initialize();
 
-  void define(const AABB& aabb);
+  void define(const AABB<3>& aabb);
 
   void get(vec3f& point, vec3f& normal) const;
 

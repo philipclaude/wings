@@ -32,87 +32,75 @@
 namespace wings {
 
 namespace meshb {
+
+#define ASSERT_GMF(X) ASSERT((X) == 1)
+
 void read_vertices(int64_t fid, int version, Vertices& vertices) {
-  int status = 1;
   int dim = vertices.dim();
-  double dvalues[4] = {0, 0, 0, 0};
-  float fvalues[4] = {0, 0, 0, 0};
-
   ASSERT(GmfGotoKwd(fid, GmfVertices) > 0);
-  int n = GmfStatKwd(fid, GmfVertices);
-  vertices.reserve(n);
-  LOG << fmt::format("reading {} vertices", n);
-
-  for (int k = 0; k < n; k++) {
-    int domain = -1;
-    if (dim == 2) {
-      if (version == 1)
-        status = GmfGetLin(fid, GmfVertices, &fvalues[0], &fvalues[1], &domain);
-      else
-        status = GmfGetLin(fid, GmfVertices, &dvalues[0], &dvalues[1], &domain);
-    } else if (dim == 3) {
-      if (version == 1)
-        GmfGetLin(fid, GmfVertices, &fvalues[0], &fvalues[1], &fvalues[2],
-                  &domain);
-      else
-        GmfGetLin(fid, GmfVertices, &dvalues[0], &dvalues[1], &dvalues[2],
-                  &domain);
+  size_t n = GmfStatKwd(fid, GmfVertices);
+  int n_bits = version == 1 ? 32 : 64;
+  LOGF("Reading {} vertices, dim = {} ({}-bit).", n, dim, n_bits);
+  std::vector<int> groups(n);
+  vertices.allocate(n);
+  // auto& groups = vertices.groups();
+  if (version == 1) {  // 32-bit reals
+    std::vector<float> coords(n * dim);
+    ASSERT_GMF(GmfGetBlock(fid, GmfVertices, 1, n, 0, NULL, NULL, GmfFloatVec,
+                           dim, &coords[0], &coords[(n - 1) * dim], GmfInt,
+                           groups.begin(), groups.end()));
+    for (size_t k = 0; k < n; k++) {
+      for (int j = 0; j < dim; j++) vertices[k][j] = coords[k * dim + j];
     }
-    ASSERT(status == 1);
-
-    if (version == 1) {
-      for (int d = 0; d < 3; d++) dvalues[d] = double(fvalues[d]);
-    }
-    vertices.add(dvalues, domain - 1);
+  } else {  // 64-bit reals
+    ASSERT_GMF(GmfGetBlock(fid, GmfVertices, 1, n, 0, NULL, NULL, GmfDoubleVec,
+                           dim, vertices[0], vertices[n - 1], GmfInt,
+                           groups.begin(), groups.end()));
   }
 }
 
-void read_edges(int64_t fid, Mesh& mesh) {
-  int status = 1;
-  int n;
-  int data[3] = {-1, -1, -1};
-  index_t edge[3] = {0, 0, 0};
+template <typename T>
+struct Type2Keyword;
+template <>
+struct Type2Keyword<Line> {
+  static const auto type = GmfEdges;
+  const std::string name = "lines";
+};
+template <>
+struct Type2Keyword<Triangle> {
+  static const auto type = GmfTriangles;
+  const std::string name = "triangles";
+};
+template <>
+struct Type2Keyword<Tet> {
+  static const auto type = GmfTetrahedra;
+  const std::string name = "tetrahedra";
+};
+template <>
+struct Type2Keyword<Pentatope> {
+  static const auto type = GmfPentatopes;
+  const std::string name = "pentatopes";
+};
 
-  if (GmfGotoKwd(fid, GmfEdges) <= 0) return;
+template <typename T>
+void read_simplices(int64_t fid, Topology<T>& topology) {
+  Type2Keyword<T> converter;
+  auto kwd = converter.type;
+  if (GmfGotoKwd(fid, kwd) <= 0) return;
 
-  n = GmfStatKwd(fid, GmfEdges);
-  mesh.lines().reserve(n);
-  LOG << fmt::format("reading {} edges", n);
+  ASSERT(GmfGotoKwd(fid, kwd) > 0);
+  size_t n = GmfStatKwd(fid, kwd);
+  LOGF("Reading {} {}.", n, converter.name);
 
-  for (int k = 0; k < n; k++) {
-    status = GmfGetLin(fid, GmfEdges, &data[0], &data[1], &data[2]);
-    ASSERT(status == 1);
+  std::vector<std::array<long, T::n_vertices + 1>> data(n);
+  GmfGetBlock(fid, kwd, 1, n, 0, nullptr, nullptr, GmfLongVec,
+              T::n_vertices + 1, &data.front(), &data.back());
 
-    for (int j = 0; j < 2; j++) edge[j] = data[j] - 1;
-
-    mesh.lines().add(edge);
-    mesh.lines().set_group(k, data[2]);
-  }
-}
-
-void read_triangles(int64_t fid, Mesh& mesh) {
-  int status = 1;
-  int n;
-  int data[4] = {-1, -1, -1, -1};
-  index_t triangle[4] = {0, 0, 0, 0};
-
-  if (GmfGotoKwd(fid, GmfTriangles) <= 0) return;
-
-  n = GmfStatKwd(fid, GmfTriangles);
-  mesh.triangles().reserve(n);
-  LOG << fmt::format("reading {} triangles", n);
-
-  for (int k = 0; k < n; k++) {
-    status =
-        GmfGetLin(fid, GmfTriangles, &data[0], &data[1], &data[2], &data[3]);
-    ASSERT(status == 1);
-
-    for (int j = 0; j < 3; j++) triangle[j] = data[j] - 1;
-    if (data[3] == 0) {
-      // triangle[0] = triangle[1] = triangle[2] = 0;
-    }
-    mesh.triangles().add(triangle);
-    mesh.triangles().set_group(k, data[3]);
+  topology.allocate(n);
+  for (size_t k = 0; k < n; k++) {
+    auto group = data[k].back();
+    for (int i = 0; i < T::n_vertices; i++) topology(k, i) = data[k][i] - 1;
+    topology.set_group(k, group);
   }
 }
 
@@ -137,31 +125,6 @@ void read_quads(int64_t fid, Mesh& mesh) {
 
     mesh.quads().add(quad);
     mesh.quads().set_group(k, data[4]);
-  }
-}
-
-void read_tetrahedra(int64_t fid, Mesh& mesh) {
-  if (GmfGotoKwd(fid, GmfTetrahedra) <= 0) return;
-
-  int status = 1;
-  int n;
-  int data[5] = {-1, -1, -1, -1, -1};
-  index_t tet[5] = {0, 0, 0, 0, 0};
-
-  ASSERT(GmfGotoKwd(fid, GmfTetrahedra) > 0);
-  n = GmfStatKwd(fid, GmfTetrahedra);
-  mesh.tetrahedra().reserve(n);
-  LOG << fmt::format("reading {} tetrahedra", n);
-
-  for (int k = 0; k < n; k++) {
-    status = GmfGetLin(fid, GmfTetrahedra, &data[0], &data[1], &data[2],
-                       &data[3], &data[4]);
-    ASSERT(status == 1);
-
-    for (int j = 0; j < 4; j++) tet[j] = data[j] - 1;
-
-    mesh.tetrahedra().add(tet);
-    mesh.tetrahedra().set_group(k, data[4]);
   }
 }
 
@@ -297,163 +260,37 @@ void read_polyhedra(int64_t fid, Mesh& mesh) {
                 });
 }
 
-void write_polygons(int64_t fid, const Mesh& mesh) {
-  if (mesh.polygons().n() == 0) return;
-
-  index_t n_boundary = mesh.polygons().n();
-  GmfSetKwd(fid, GmfBoundaryPolygonHeaders, n_boundary);
-  index_t m = 1;
-  for (size_t k = 0; k < mesh.polygons().n(); k++) {
-    GmfSetLin(fid, GmfBoundaryPolygonHeaders, m, mesh.polygons().group(k));
-    m += mesh.polygons().length(k);
-  }
-
-  GmfSetKwd(fid, GmfBoundaryPolygonVertices, m - 1);
-  for (size_t k = 0; k < mesh.polygons().n(); k++) {
-    for (int j = 0; j < mesh.polygons().length(k); j++)
-      GmfSetLin(fid, GmfBoundaryPolygonVertices, mesh.polygons()(k, j) + 1);
-  }
-}
-
-void write_polyhedra(int64_t fid, const Mesh& mesh) {
-  if (mesh.polyhedra().n() == 0) return;
-
-  index_t n_interior = mesh.polyhedra().faces().n();
-  GmfSetKwd(fid, GmfInnerPolygonHeaders, n_interior);
-  index_t m = 1;
-  for (size_t k = 0; k < mesh.polyhedra().faces().n(); k++) {
-    GmfSetLin(fid, GmfInnerPolygonHeaders, m,
-              mesh.polyhedra().faces().group(k));
-    m += mesh.polyhedra().faces().length(k);
-  }
-
-  GmfSetKwd(fid, GmfInnerPolygonVertices, m - 1);
-  for (size_t k = 0; k < mesh.polyhedra().faces().n(); k++) {
-    for (int j = 0; j < mesh.polyhedra().faces().length(k); j++)
-      GmfSetLin(fid, GmfInnerPolygonVertices,
-                mesh.polyhedra().faces()(k, j) + 1);
-  }
-
-  GmfSetKwd(fid, GmfPolyhedraHeaders, mesh.polyhedra().n());
-  m = 1;
-  for (size_t k = 0; k < mesh.polyhedra().n(); k++) {
-    GmfSetLin(fid, GmfPolyhedraHeaders, m, mesh.polyhedra().group(k) + 1);
-    m += mesh.polyhedra().length(k);
-  }
-
-  GmfSetKwd(fid, GmfPolyhedraFaces, m - 1);
-  for (size_t k = 0; k < mesh.polyhedra().n(); k++) {
-    for (int j = 0; j < mesh.polyhedra().length(k); j++) {
-      int s = mesh.polyhedra().orientation()(k, j);
-      index_t f = mesh.polyhedra()(k, j) + 1;
-      GmfSetLin(fid, GmfPolyhedraFaces, s * f);
-    }
-  }
-}
-
-void write_prisms(int64_t fid, const Mesh& mesh) {
-  if (mesh.prisms().n() == 0) return;
-
-  int n = mesh.prisms().n();
-  GmfSetKwd(fid, GmfPrisms, n);
-
-  int indices[7];
-  for (size_t k = 0; k < mesh.prisms().n(); k++) {
-    for (int j = 0; j < 6; j++) indices[j] = mesh.prisms()(k, j) + 1;
-    indices[6] = mesh.prisms().group(k) + 1;
-    GmfSetLin(fid, GmfPrisms, indices[0], indices[1], indices[2], indices[3],
-              indices[4], indices[5], indices[6]);
-  }
-}
-
-template <typename T>
-void write_simplex(int64_t fid, const Topology<T>& topology) {
-  const int nv = T::n_vertices;
-  int type;
-  if (nv == 1)
-    type = GmfCorners;
-  else if (nv == 2)
-    type = GmfEdges;
-  else if (nv == 3)
-    type = GmfTriangles;
-  else if (nv == 4)
-    type = GmfTetrahedra;
-  else
-    NOT_POSSIBLE;
-
-  int n = topology.n();
-  GmfSetKwd(fid, type, n);
-
-  int indices[5];
-  for (int k = 0; k < n; k++) {
-    for (int j = 0; j < nv; j++) indices[j] = topology(k, j) + 1;
-    indices[nv] = topology.group(k) + 1;
-
-    if (nv == 1)
-      GmfSetLin(fid, type, indices[0]);
-    else if (nv == 2)
-      GmfSetLin(fid, type, indices[0], indices[1], indices[2]);
-    else if (nv == 3)
-      GmfSetLin(fid, type, indices[0], indices[1], indices[2], indices[3]);
-    else if (nv == 4)
-      GmfSetLin(fid, type, indices[0], indices[1], indices[2], indices[3],
-                indices[4]);
-    else
-      NOT_POSSIBLE;
-  }
-}
-
 void read(const std::string& filename, Mesh& mesh) {
   // open the file
   int version;
   int dim;
   int64_t fid = GmfOpenMesh(filename.c_str(), GmfRead, &version, &dim);
-  ASSERT(fid) << "could not open mesh file " << filename;
+  ASSERT(fid) << "Could not open mesh file " << filename;
   mesh.vertices().set_dim(dim);
 
-  read_edges(fid, mesh);
-  read_triangles(fid, mesh);
-  read_quads(fid, mesh);
-  read_tetrahedra(fid, mesh);
-  read_prisms(fid, mesh);
-  read_pyramids(fid, mesh);
-  read_polygons(fid, mesh);
-  read_polyhedra(fid, mesh);
+  // 0-dimensional
   read_vertices(fid, version, mesh.vertices());
 
-  GmfCloseMesh(fid);
-}
+  // 1-dimensional
+  read_simplices(fid, mesh.lines());
 
-void write(const Mesh& mesh, const std::string& filename, bool twod) {
-  int dim = mesh.vertices().dim();
-  if (twod) dim = 2;
+  // 2-dimensional
+  read_simplices(fid, mesh.triangles());
+  read_quads(fid, mesh);
+  read_polygons(fid, mesh);
 
-  int64_t fid = GmfOpenMesh(filename.c_str(), GmfWrite, GmfDouble, dim);
-  ASSERT(fid);
+  // 3-dimensional
+  read_simplices(fid, mesh.tetrahedra());
+  read_prisms(fid, mesh);
+  read_pyramids(fid, mesh);
+  read_polyhedra(fid, mesh);
 
-  GmfSetKwd(fid, GmfVertices, mesh.vertices().n());
-  for (size_t k = 0; k < mesh.vertices().n(); k++) {
-    int ref = mesh.vertices().group(k) + 1;
-    if (dim == 2)
-      GmfSetLin(fid, GmfVertices, mesh.vertices()[k][0], mesh.vertices()[k][1],
-                ref);
-    else if (dim == 3)
-      GmfSetLin(fid, GmfVertices, mesh.vertices()[k][0], mesh.vertices()[k][1],
-                mesh.vertices()[k][2], ref);
-  }
-
-  // write the elements
-  write_simplex(fid, mesh.lines());
-  write_simplex(fid, mesh.triangles());
-  write_polygons(fid, mesh);
-  if (!twod) {
-    write_simplex(fid, mesh.tetrahedra());
-    write_prisms(fid, mesh);
-  }
-  write_polyhedra(fid, mesh);
+  // 4-dimensional
+  read_simplices(fid, mesh.pentatopes());
 
   GmfCloseMesh(fid);
 }
+
 }  // namespace meshb
 
 namespace obj {

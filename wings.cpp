@@ -820,7 +820,7 @@ class WebsocketClient {
     // main thread) which can be used in this thread
     context_ = RenderingContext::create(scene_.context());
     scene_.onconnect();
-    sendmessage("*wings server initialized!", RFC6455_OP_TEXT);
+    sendmessage("*Initialized wings server.", RFC6455_OP_TEXT);
 
     size_t max_length = 1e5;
     std::string frame(max_length, ' ');
@@ -1155,13 +1155,24 @@ void glCanvas::create() {
   GLuint gl_renderbuffer;
   GL_CALL(glGenRenderbuffers(1, &gl_renderbuffer));
   GL_CALL(glBindRenderbuffer(GL_RENDERBUFFER, gl_renderbuffer));
-  GL_CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, width, height));
+  if (!msaa) {
+    GL_CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, width, height));
+  } else {
+    GL_CALL(glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_RGBA8,
+                                             width, height));
+  }
 
   GLuint gl_depthbuffer;
   GL_CALL(glGenRenderbuffers(1, &gl_depthbuffer));
   GL_CALL(glBindRenderbuffer(GL_RENDERBUFFER, gl_depthbuffer));
-  GL_CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width,
-                                height));
+
+  if (!msaa) {
+    GL_CALL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width,
+                                  height));
+  } else {
+    GL_CALL(glRenderbufferStorageMultisample(
+        GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT, width, height));
+  }
 
   GL_CALL(glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                     GL_RENDERBUFFER, gl_renderbuffer));
@@ -1169,9 +1180,28 @@ void glCanvas::create() {
                             GL_RENDERBUFFER, gl_depthbuffer);
   assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
 
+  if (msaa) {
+    GLuint gl_resolve_framebuffer;
+    glGenFramebuffers(1, &gl_resolve_framebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, gl_resolve_framebuffer);
+
+    GLuint gl_resolve_renderbuffer;
+    glBindFramebuffer(GL_FRAMEBUFFER, gl_resolve_framebuffer);
+    glGenRenderbuffers(1, &gl_resolve_renderbuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, gl_resolve_renderbuffer);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, width, height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                              GL_RENDERBUFFER, gl_resolve_renderbuffer);
+    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+    resolve_framebuffer = gl_resolve_framebuffer;
+    resolve_renderbuffer = gl_resolve_renderbuffer;
+  }
+
   framebuffer = gl_framebuffer;
   renderbuffer = gl_renderbuffer;
   depthbuffer = gl_depthbuffer;
+
+  bind();
 }
 
 void glCanvas::resize(int w, int h) {
@@ -1182,13 +1212,38 @@ void glCanvas::resize(int w, int h) {
   create();
 }
 
+void glCanvas::save(Scene& scene) const {
+  if (msaa) {
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, resolve_framebuffer);
+    glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,
+                      GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_FRAMEBUFFER, resolve_framebuffer);
+  } else {
+    GL_CALL(glBindFramebuffer(GL_FRAMEBUFFER, framebuffer));
+  }
+
+  scene.set_channels(3);
+  scene.pixels().resize(scene.channels() * width * height);
+  GL_CALL(glPixelStorei(GL_PACK_ALIGNMENT, 4));
+  GL_CALL(glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE,
+                       scene.pixels().data()));
+  glFinish();
+}
+
 void glCanvas::release() {
   GLuint gl_renderbuffer = renderbuffer;
   GLuint gl_depthbuffer = depthbuffer;
   GLuint gl_framebuffer = framebuffer;
+  GLuint gl_resolve_framebuffer = resolve_framebuffer;
+  GLuint gl_resolve_renderbuffer = resolve_renderbuffer;
   if (renderbuffer >= 0) GL_CALL(glDeleteRenderbuffers(1, &gl_renderbuffer));
   if (depthbuffer >= 0) GL_CALL(glDeleteRenderbuffers(1, &gl_depthbuffer));
   if (framebuffer >= 0) GL_CALL(glDeleteFramebuffers(1, &gl_framebuffer));
+  if (resolve_framebuffer >= 0)
+    GL_CALL(glDeleteFramebuffers(1, &gl_resolve_framebuffer));
+  if (resolve_renderbuffer >= 0)
+    GL_CALL(glDeleteRenderbuffers(1, &gl_resolve_renderbuffer));
 }
 
 }  // namespace wings

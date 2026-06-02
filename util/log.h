@@ -89,9 +89,10 @@ struct Exception {
 #define ASSERT(X)     \
   if (unlikely(!(X))) \
   __ERR__("assertion error") << "assertion " << #X " failed "
-#define NOT_IMPLEMENTED __ERR__("not implemented")
-#define NOT_POSSIBLE __ERR__("should not be reached")
-#define NOT_CONFIGURED __ERR__("not configured")
+#define NOT_IMPLEMENTED __ERR__("Not implemented.")
+#define NOT_POSSIBLE __ERR__("Should not be reached.")
+#define NOT_CONFIGURED __ERR__("Not configured.")
+#define LOGF LOG << fmt::format
 
 #ifdef NDEBUG
 #define DBG_ASSERT(X)

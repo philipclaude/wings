@@ -24,10 +24,17 @@
 
 namespace wings {
 
-template <size_t N, typename T> struct vec : public std::array<T, N> {
+template <size_t N, typename T>
+struct vec : public std::array<T, N> {
   vec() {
     for (size_t i = 0; i < N; i++) (*this)[i] = 0;
   }
+
+  template <typename T2>
+  vec(const vec<N, T2>& u) {
+    for (size_t i = 0; i < N; i++) (*this)[i] = u[i];
+  }
+
   vec(const T& v) {
     for (size_t i = 0; i < N; i++) (*this)[i] = v;
   }
@@ -36,14 +43,16 @@ template <size_t N, typename T> struct vec : public std::array<T, N> {
     int i = 0;
     for (const auto& value : v) (*this)[i++] = value;
   }
-  vec(const T* v, size_t n = 0) {
+  template <typename T2>
+  vec(const T2* v, size_t n = 0) {
     if (n == 0) n = N;
     for (size_t i = 0; i < n; i++) (*this)[i] = v[i];
   }
   vec<3, T> xyz() const { return {(*this)[0], (*this)[1], (*this)[2]}; }
 };  // namespace std::array
 
-template <size_t N, typename T> class mat {
+template <size_t N, typename T>
+class mat {
  public:
   static constexpr size_t n_elem = N * N;
   mat() { zero(); }
@@ -60,17 +69,36 @@ template <size_t N, typename T> class mat {
   T data_[N * N];
 };
 
-template <typename T> inline T length(const vec<3, T>& u) {
+template <typename T>
+inline T length(const vec<3, T>& u) {
   return std::sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
 }
 
-template <typename T> inline vec<3, T> unit_vector(const vec<3, T>& u) {
+template <typename T>
+inline T length(const vec<4, T>& u) {
+  return std::sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2] + u[3] * u[3]);
+}
+
+template <typename T>
+inline vec<3, T> unit_vector(const vec<3, T>& u) {
   T l = length(u);
   return {u[0] / l, u[1] / l, u[2] / l};
 }
 
-template <typename T> inline T dot(const vec<3, T>& u, const vec<3, T>& v) {
+template <typename T>
+inline vec<4, T> unit_vector(const vec<4, T>& u) {
+  T l = length(u);
+  return {u[0] / l, u[1] / l, u[2] / l, u[3] / l};
+}
+
+template <typename T>
+inline T dot(const vec<3, T>& u, const vec<3, T>& v) {
   return u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+}
+
+template <typename T>
+inline T dot(const vec<4, T>& u, const vec<4, T>& v) {
+  return u[0] * v[0] + u[1] * v[1] + u[2] * v[2] + u[3] * v[3];
 }
 
 template <typename T>
@@ -82,6 +110,11 @@ inline vec<3, T> cross(const vec<3, T>& u, const vec<3, T>& v) {
 template <typename T>
 inline vec<3, T> operator-(const vec<3, T>& u, const vec<3, T>& v) {
   return {u[0] - v[0], u[1] - v[1], u[2] - v[2]};
+}
+
+template <typename T>
+inline vec<4, T> operator-(const vec<4, T>& u, const vec<4, T>& v) {
+  return {u[0] - v[0], u[1] - v[1], u[2] - v[2], u[3] - v[3]};
 }
 
 template <typename T>
@@ -151,6 +184,7 @@ inline vec<N, T> operator*(const mat<N, T>& a, const vec<N, T>& x) {
 
 using vec2f = vec<2, float>;
 using vec3f = vec<3, float>;
+using vec3d = vec<3, double>;
 using vec4f = vec<4, float>;
 using mat4f = mat<4, float>;
 using mat3f = mat<3, float>;

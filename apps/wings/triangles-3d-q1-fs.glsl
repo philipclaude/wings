@@ -1,0 +1,130 @@
+#version 410
+
+layout(location = 0) out vec4 fragColor;
+
+in vec3 v_Position;
+in vec3 v_Barycentric;
+flat in vec3 v_Normal;
+noperspective in vec3 v_Altitude;
+
+flat in int v_TriangleID;
+flat in int v_CellNumber;
+flat in int v_Group;
+
+uniform sampler2D image;
+uniform samplerBuffer colormap;
+uniform samplerBuffer field;
+uniform isamplerBuffer hidden;
+
+uniform int u_lighting;
+uniform int u_field_mode;
+uniform int u_edges;
+uniform float u_alpha;
+uniform int u_selected_group;
+uniform int u_selected_cell;
+uniform vec3 u_group_palette[12];
+
+uniform int u_group;
+uniform int u_min_group;
+uniform int u_max_group;
+uniform int u_max_cell;
+
+const int ncolor = 256;
+uniform float u_umin = 0;
+uniform float u_umax = 1;
+
+vec3 get_color(float u, float umin, float umax) {
+  int indx = int(ncolor * (u - umin) / (umax - umin));
+  indx = max(indx, 0);
+  indx = min(indx, 255);
+  return texelFetch(colormap, indx).xyz;
+}
+
+vec3 shading(in vec3 l, in vec3 n, in vec3 color) {
+  float ambient = 1 - u_lighting;
+  float diffuse = u_lighting * abs(dot(l, n));
+  float specular = u_lighting * pow(max(0.0, dot(-reflect(l, n), l)), 128.0);
+  return color * (ambient + diffuse + specular);
+}
+
+uint hash(uint x) {
+  uint s = x * 747796405u + 2891336453u;
+  uint w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+  return (w >> 22u) ^ w;
+}
+
+void main() {
+
+  if (v_Group >= 0) {
+    int h = texelFetch(hidden, v_Group).r;
+    if (h == 1) discard;
+  }
+
+  float alpha = u_alpha;
+
+  vec3 position = normalize(v_Position);
+  vec3 normal = normalize(v_Normal);
+
+  float d = min(min(v_Altitude.x, v_Altitude.y), v_Altitude.z);
+  float intensity = u_edges * (1.0 - smoothstep(0.0, 2.0, d));
+
+  vec3 color_constant = vec3(0.9);
+  vec3 color_field = color_constant;
+  vec3 color_group = u_group_palette[v_Group % 12];
+  vec3 color_cell = get_color(int(hash(uint(v_CellNumber)) % uint(u_max_cell + 1)), 0, u_max_cell);
+
+  /*
+  #if ORDER == 0
+
+  float u = texelFetch(field, v_TriangleID).r;
+  color_field = get_color(u, u_umin, u_umax);
+
+  #elif ORDER == 1
+
+  float u0 =  texelFetch(field, 3 * v_TriangleID    ).r;
+  float u1 =  texelFetch(field, 3 * v_TriangleID + 1).r;
+  float u2 =  texelFetch(field, 3 * v_TriangleID + 2).r;
+
+  float s = v_Barycentric[0];
+  float t = v_Barycentric[1];
+
+  float u = (1.0 - s - t) * u0 + s * u1 + t * u2;
+  color_field = get_color(u, u_umin, u_umax);
+
+  #elif ORDER == -1
+
+  float s = v_Barycentric[0];
+  float t = v_Barycentric[1];
+
+  vec2 uv0 = texelFetch(texcoord, 3 * v_TriangleID    ).xy;
+  vec2 uv1 = texelFetch(texcoord, 3 * v_TriangleID + 1).xy;
+  vec2 uv2 = texelFetch(texcoord, 3 * v_TriangleID + 2).xy;
+
+  vec2 uv = (1.0 - s - t) * uv0 + s * uv1 + t * uv2;
+
+  // float f = 200.0;
+  // if (sin(f * uv[0]) * sin(f * uv[1]) > 0.0)
+  //   color = vec3(0, 0, 0);
+  // else
+  //   color = vec3(1, 1, 1);
+
+  color_field = texture(image, uv).rgb;
+  #endif
+  */
+
+  int m_constant = int(u_field_mode == 0);
+  int m_group = int(u_field_mode == 1);
+  int m_cell = int(u_field_mode == 2);
+  int m_field = int(u_field_mode == 3);
+
+  vec3 color = m_constant * color_constant + m_group * color_group + m_cell * color_cell + m_field * color_field;
+
+  if (v_Group == u_selected_group && v_CellNumber == u_selected_cell) {
+    color = vec3(0, 0, 1);
+    intensity = 0;
+    alpha = 0.5;
+  }
+  color = shading(-position, normal, color);
+
+  fragColor = intensity * vec4(0, 0, 0, 1) + (1.0 - intensity) * vec4(color, alpha);
+}

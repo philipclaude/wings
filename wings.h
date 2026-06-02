@@ -68,7 +68,7 @@ enum RenderingContextType : uint8_t { kOpenGL };
 struct RenderingContext {
   // Creates a rendering context of a specific type.
   RenderingContext(RenderingContextType _type) : type(_type) {}
-  virtual ~RenderingContext(){};
+  virtual ~RenderingContext() {};
 
   // Prints information about the rendering context in use,
   // such as version number and supported extensions.
@@ -156,8 +156,12 @@ class Scene {
   // Number of color channels in each pixel (usually 3).
   int channels() const { return channels_; }
 
+  // Sets the number of channels
+  void set_channels(int c) { channels_ = c; }
+
   // The pixels to send to stb to write the JPEG image.
   const std::vector<unsigned char>& pixels() const { return pixels_; }
+  std::vector<unsigned char>& pixels() { return pixels_; }
 
  protected:
   std::shared_ptr<RenderingContext> context_;
@@ -204,7 +208,6 @@ class RenderingServer {
   std::unique_ptr<WebsocketRenderer> renderer_;
   std::atomic<bool> listen_;
   std::future<StatusCode> server_;
-  // Scene& scene_;
 };
 
 // Utility structure to represent an OpenGL canvas.
@@ -212,7 +215,9 @@ class RenderingServer {
 // between different contexts.
 struct glCanvas {
   // Initializes the canvas to a particular width and height.
-  glCanvas(int w, int h) : width(w), height(h) { create(); }
+  glCanvas(int w, int h, bool m = false) : width(w), height(h), msaa(m) {
+    create();
+  }
   ~glCanvas() { release(); }
 
   // Creates the framebuffer, depthbuffer and renderbuffer.
@@ -228,8 +233,16 @@ struct glCanvas {
   // Frees the buffers associated with this canvas.
   void release();
 
+  // Saves the pixels which can then be sent
+  void save(Scene& scene) const;
+
+  // Width and height of the canvas, whether multisampling should be used
   int width{0}, height{0};
+  bool msaa{true};
+
+  // These are int instead of GLuint to avoid including GL headers here
   int renderbuffer{-1}, framebuffer{-1}, depthbuffer{-1};
+  int resolve_framebuffer{-1}, resolve_renderbuffer{-1};
 };
 
 }  // namespace wings

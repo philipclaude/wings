@@ -274,6 +274,12 @@ class Field {
   ElementField<Tet>& tetrahedra() { return tetrahedra_; }
   ElementField<Polyhedron>& polyhedra() { return polyhedra_; }
 
+  template <typename T>
+  const ElementField<T>& get() const;
+
+  template <typename T>
+  ElementField<T>& get();
+
  private:
   int ranks_;
   int order_;

@@ -31,9 +31,10 @@ static void allocate(const Topology<T>& topology, ElementField<T>& field) {
   if (topology.stride() < 0) field.set_stride(-1);
 
   field.reserve(topology.n());
-  std::vector<coord_t> data;
+  std::vector<double> data;
   for (index_t k = 0; k < topology.n(); k++) {
     data.resize(topology.length(k), 0.0);
+    // for (int j = 0; j < topology.length(k); j++) field[k][j] = 0.0;
     field.add(data.data(), data.size());
   }
 }
@@ -220,8 +221,7 @@ static void evaluate_polyhedra(
   ASSERT(topology.n() == field.n());
   UNUSED(vertices);
   UNUSED(f);
-  LOG << "[warning] not evaluating field on polyhedra";
-  return;
+  LOG << "Skipping field evaluation on polyhedra.";
 }
 
 void Field::evaluate(const Mesh& mesh,
@@ -237,6 +237,56 @@ void Field::evaluate(const Mesh& mesh,
   evaluate_polyhedra(mesh.vertices(), mesh.polyhedra(), polyhedra_, f);
   evaluate_topology(mesh.vertices(), mesh.polyhedra().faces(),
                     polyhedra_.faces(), f);
+}
+
+template <>
+const ElementField<Triangle>& Field::get<Triangle>() const {
+  return triangles_;
+}
+
+template <>
+ElementField<Triangle>& Field::get<Triangle>() {
+  return triangles_;
+}
+
+template <>
+const ElementField<Polygon>& Field::get<Polygon>() const {
+  return polygons_;
+}
+
+template <>
+ElementField<Polygon>& Field::get<Polygon>() {
+  return polygons_;
+}
+
+template <>
+const ElementField<Quad>& Field::get<Quad>() const {
+  return quads_;
+}
+
+template <>
+ElementField<Quad>& Field::get<Quad>() {
+  return quads_;
+}
+
+template <>
+const ElementField<Tet>& Field::get<Tet>() const {
+  return tetrahedra_;
+}
+
+template <>
+ElementField<Tet>& Field::get<Tet>() {
+  return tetrahedra_;
+}
+
+template <>
+const ElementField<Polyhedron>& Field::get<Polyhedron>() const {
+  return polyhedra_;
+}
+
+template <>
+ElementField<Polyhedron>& Field::get<Polyhedron>() {
+  return polyhedra_;
 }
 
 template <typename T>

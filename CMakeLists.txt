@@ -1,11 +1,16 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.10)
 
 project(wings LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 14)
+# TODO allow C++ 14 if abseil is not used
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "-O3 -fPIC -Wall -Wextra")
 set(CMAKE_C_FLAGS "-O3 -fPIC -Wall")
-#set(CMAKE_CXX_FLAGS "-O0 -fsanitize=address")
+set_property(GLOBAL PROPERTY TARGET_MESSAGES OFF)
+#set(CMAKE_CXX_FLAGS "-O0 -g -fsanitize=address")
+
+set(ABSL_PROPAGATE_CXX_STD ON)
+set(ABSL_USE_SYSTEM_INCLUDES ON)
 
 # setup binary and lib directories
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -53,7 +58,7 @@ endfunction()
 set(external_libraries fmt)
 
 add_library(wings SHARED wings.cpp)
-set_property(TARGET wings PROPERTY CXX_STANDARD 14)
+set_property(TARGET wings PROPERTY CXX_STANDARD 17)
 target_link_libraries(wings ${LIBRARIES})
 
 option(WINGS_BUILD_UTIL "build utilities" TRUE)
@@ -71,6 +76,7 @@ endif()
 set(WINGS_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/util ${CMAKE_CURRENT_SOURCE_DIR}/third_party
 	${CMAKE_CURRENT_SOURCE_DIR}/third_party/libmeshb/sources
 	${CMAKE_CURRENT_SOURCE_DIR}/third_party/fmt/include
+	${CMAKE_CURRENT_SOURCE_DIR}/extern/abseil
 )
 include_directories(${WINGS_INCLUDE_DIRS})
 
@@ -79,10 +85,10 @@ set(WINGS_EXTERNAL_LIBRARIES ${LIBRARIES} ${external_libraries})
 
 include_directories(${WINGS_STB_LOCATION})
 
-
 if (${WINGS_BUILD_UTIL})
 	# add all the source files
 	set(SOURCES
+	util/bvh.cpp
 	util/field.cpp
 	util/log.cpp
 	util/mesh.cpp
@@ -113,19 +119,29 @@ if (${WINGS_BUILD_APPS})
 	# external repositories
 	add_extern_repository(tinyobjloader GIT_REPOSITORY "https://github.com/tinyobjloader/tinyobjloader")
 	add_extern_repository(fmt GIT_REPOSITORY "https://github.com/fmtlib/fmt")
-	add_extern_repository(libmeshb GIT_REPOSITORY "https://github.com/LoicMarechal/libMeshb")
+	add_extern_repository(libmeshb GIT_REPOSITORY "https://github.com/philipclaude/libMeshb")
+	add_extern_repository(abseil GIT_REPOSITORY "https://github.com/abseil/abseil-cpp")
+	#add_extern_repository(argparse GIT_REPOSITORY "https://github.com/p-ranav/argparse")
+	#add_extern_repository(json GIT_REPOSITORY "https://github.com/nlohmann/json.git" SKIP_CONFIG TRUE)
+
 	add_library(wings_io_src OBJECT util/io.cpp)
 	target_link_libraries(wings_io_src Meshb.7 tinyobjloader)
 
 	# xwing (example)
 	add_executable(xwing apps/xwing/main.cpp)
 	target_link_libraries(xwing wings tinyobjloader)
-	set_property(TARGET xwing PROPERTY CXX_STANDARD 14)
+	set_property(TARGET xwing PROPERTY CXX_STANDARD 17)
 
 	# vwing
-	add_executable(vwing apps/vwing/main.cpp)
-	target_link_libraries(vwing wings_util_static wings_io_src wings dl)
-	target_compile_definitions(vwing PUBLIC -DWINGS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+	#add_executable(vwing apps/vwing/main.cpp)
+	#target_link_libraries(vwing wings_util_static wings_io_src wings dl)
+	#target_compile_definitions(vwing PUBLIC -DWINGS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+
+	# wings main program
+	add_executable(wings_exe apps/wings/main.cpp)
+	set_property(TARGET wings_exe PROPERTY OUTPUT_NAME wings)
+	target_link_libraries(wings_exe wings_util_static wings_io_src wings dl absl::flat_hash_set)
+	target_compile_definitions(wings_exe PUBLIC -DWINGS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 endif()
 
 # utility to remove external repositories

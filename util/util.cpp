@@ -24,6 +24,18 @@
 
 namespace wings {
 
+template <>
+void AABB<3>::print() const {
+  LOGF("Box: {}, {}, {} -> {}, {}, {}", min_[0], min_[1], min_[2], max_[0],
+       max_[1], max_[2]);
+}
+
+template <>
+void AABB<4>::print() const {
+  LOGF("Box: {}, {}, {} {} -> {}, {}, {} {}", min_[0], min_[1], min_[2],
+       min_[3], max_[0], max_[1], max_[2], max_[3]);
+}
+
 GLClipPlane::GLClipPlane()
     : length(-1.0f), visible(false), distance(0.0f), active(false) {
   transformation.eye();
@@ -51,9 +63,9 @@ void GLClipPlane::initialize() {
   buffer = vbo;
 }
 
-void GLClipPlane::define(const AABB& aabb) {
-  center = 0.5f * (aabb.min + aabb.max);
-  vec3f dims = 1.2f * (aabb.max - aabb.min);
+void GLClipPlane::define(const AABB<3>& aabb) {
+  center = 0.5f * (aabb.min() + aabb.max());
+  vec3f dims = 1.2f * (aabb.max() - aabb.min());
   float a = std::max(dims[0], std::max(dims[1], dims[2]));
 
   vec3f u, v;

@@ -1,0 +1,650 @@
+<!--
+//
+//  wings: web interface for graphics applications
+//
+//  Copyright 2023 - 2026 Philip Claude Caplan
+//
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
+//
+-->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+
+    <title>wings</title>
+
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/solid.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="icon"
+      href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@5.15/svgs/solid/paper-plane.svg"
+    />
+
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3"
+      crossorigin="anonymous"
+    />
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p"
+      crossorigin="anonymous"
+    ></script>
+
+    <style>
+      #text {
+        background-color: transparent;
+        position: absolute;
+        left: 0px;
+        top: 0px;
+        z-index: 10;
+      }
+
+      .container {
+        position: relative;
+      }
+
+      .form-select {
+        width: fit-content;
+        display: inline-block;
+      }
+
+      .center {
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+      }
+    </style>
+  </head>
+
+  <body style="background-color: lightgray">
+    <!-- wrapper -->
+    <div id="wrapper">
+      <!-- page content -->
+      <div class="avoid-nav" id="page-content-wrapper">
+        <div class="container-fluid" style="margin-top: 10px">
+          <div class="" style="display: inline-block">
+            <button
+              class="float-right btn btn-primary"
+              id="button-save-png"
+              onclick="alert('not implemented!')"
+            >
+              Export
+            </button>
+          </div>
+          &nbsp;&nbsp;
+          <div style="display: inline-block">
+            <input
+              class="btn btn-light"
+              onchange="setHeight()"
+              style="width: 100px; color: black"
+              id="input-height"
+              type="number"
+              step="100"
+              value="600"
+            />
+            &nbsp;&nbsp;
+            <label class="form-check-label" for="height-input">Height</label>
+            &nbsp;&nbsp;
+          </div>
+          <div style="display: inline-block">
+            <select class="form-select" id="clip-dropdown" oninput="clip()">
+              <option>[Clip]</option>
+              <option>X+</option>
+              <option>Y+</option>
+              <option>Z+</option>
+              <option>X-</option>
+              <option>Y-</option>
+              <option>Z-</option>
+            </select>
+          </div>
+          <div
+            class="form-check"
+            style="display: inline-block; vertical-align: bottom"
+          >
+            <center>
+              <label class="form-check-label" for="clip-distance"
+                >Distance</label
+              >
+            </center>
+            <input
+              class="form-range"
+              style="width: 125px; display: block"
+              type="range"
+              id="clip-distance"
+              oninput="clip()"
+              value="0"
+              min="-100"
+              max="100"
+            />
+          </div>
+          &nbsp;
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-plane"
+              type="checkbox"
+              checked
+              onchange="clip()"
+            />
+            <label class="form-check-label" for="checkbox-plane">Show</label>
+          </div>
+          &nbsp;&nbsp;
+          <div class="" style="display: inline-block">
+            <button
+              class="float-right btn btn-primary"
+              id="button-clip"
+              onclick="updateClip()"
+            >
+              Update
+            </button>
+          </div>
+          &nbsp;&nbsp;
+          <div
+            class="form-check"
+            style="display: inline-block; vertical-align: bottom"
+          >
+            <center>
+              <label class="form-check-label" for="clip-hyperplane"
+                >Hyperplane</label
+              >
+            </center>
+            <input
+              class="form-range"
+              style="width: 125px; display: block"
+              type="range"
+              id="clip-hyperplane"
+              oninput="moveHyperplane()"
+              value="-100"
+              min="-100"
+              max="100"
+            />
+          </div>
+          &nbsp;&nbsp;
+          <div style="display: inline-block">
+            <select
+              class="form-select"
+              id="clip-direction"
+              onchange="changeClipDirection()"
+            >
+              <option>[Normal]</option>
+              <option>X</option>
+              <option>Y</option>
+              <option>Z</option>
+              <option selected>T</option>
+            </select>
+          </div>
+          &nbsp;&nbsp;
+          <div style="display: inline-block">
+            <select
+              class="form-select"
+              id="colormap-dropdown"
+              onchange="selectColormap()"
+            >
+              <option>[Colormap]</option>
+              <option>blue-white-red</option>
+              <option>blue-green-red</option>
+              <option>jet</option>
+              <option>hsv</option>
+              <option>hot</option>
+              <option>viridis</option>
+              <option>giraffe</option>
+            </select>
+          </div>
+          <div style="display: inline-block">
+            <button
+              class="btn btn-primary"
+              id="center-view"
+              onclick="centerView()"
+            >
+              Center
+            </button>
+          </div>
+          <hr />
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-nodes"
+              type="checkbox"
+              checked
+              onchange="togglePrimitive('checkbox-nodes', 'n')"
+            />
+            <label class="form-check-label" for="checkbox-nodes">Nodes</label>
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-edges"
+              type="checkbox"
+              onchange="togglePrimitive('checkbox-edges', 'e')"
+            />
+            <label class="form-check-label" for="checkbox-edges">Lines</label>
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-wireframe"
+              type="checkbox"
+              checked
+              onchange="togglePrimitive('checkbox-wireframe', 'w')"
+            />
+            <label class="form-check-label" for="checkbox-wireframe"
+              >Edges</label
+            >
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-triangles"
+              type="checkbox"
+              checked
+              onchange="togglePrimitive('checkbox-triangles', 't')"
+            />
+            <label class="form-check-label" for="checkbox-triangles"
+              >Triangles</label
+            >
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-quads"
+              type="checkbox"
+              checked
+              onchange="togglePrimitive('checkbox-quads', 'q')"
+            />
+            <label class="form-check-label" for="checkbox-quads">Quads</label>
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-tetrahedra"
+              type="checkbox"
+              checked
+              onchange="togglePrimitive('checkbox-tetrahedra', 'T')"
+            />
+            <label class="form-check-label" for="checkbox-tetrahedra"
+              >Tetrahedra</label
+            >
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-prisms"
+              type="checkbox"
+              onchange="togglePrimitive('checkbox-prisms', 'y')"
+            />
+            <label class="form-check-label" for="checkbox-prisms">Prisms</label>
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-pyramids"
+              type="checkbox"
+              onchange="togglePrimitive('checkbox-pyramids', 'Y')"
+            />
+            <label class="form-check-label" for="checkbox-pyramids"
+              >Pyramids</label
+            >
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-polygons"
+              type="checkbox"
+              checked
+              onchange="togglePrimitive('checkbox-polygons', 'p')"
+            />
+            <label class="form-check-label" for="checkbox-polygons"
+              >Polygons</label
+            >
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-polyhedra"
+              type="checkbox"
+              onchange="togglePrimitive('checkbox-polyhedra', 'P')"
+            />
+            <label class="form-check-label" for="checkbox-polyhedra"
+              >Polyhedra</label
+            >
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-pentatopes"
+              type="checkbox"
+              onchange="togglePrimitive('checkbox-pentatopes', 'V')"
+            />
+            <label class="form-check-label" for="checkbox-pentatopes"
+              >Pentatopes</label
+            >
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-points"
+              type="checkbox"
+              onchange="togglePrimitive('checkbox-points', 'v')"
+            />
+            <label class="form-check-label" for="checkbox-points">Points</label>
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-lighting"
+              type="checkbox"
+              checked
+              onchange="toggleLighting()"
+            />
+            <label class="form-check-label" for="checkbox-lighting"
+              >Lighting</label
+            >
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <input
+              class="form-check-input"
+              id="checkbox-vertex-numbers"
+              type="checkbox"
+              onchange="toggleNumbers()"
+              checked
+            />
+            <label class="form-check-label" for="checkbox-numbers"
+              >Numbers</label
+            >
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <label class="form-check-label" for="transparency"
+              >Transparency</label
+            >
+            <input
+              class="form-range"
+              style="display: block; width: 125px"
+              id="transparency"
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value="100"
+              onchange="setTransparency()"
+            />
+          </div>
+          <div class="form-check" style="display: inline-block">
+            <label class="form-check-label" id="size-label"></label>
+          </div>
+          <br />
+          <div class="form-check" style="display: inline-block" hidden>
+            <label class="form-check-label" for="qualitys"
+              >Static Quality</label
+            >
+            <input
+              class="form-range"
+              style="display: block; width: 125px"
+              id="qualitys"
+              type="range"
+              min="5"
+              max="100"
+              step="5"
+              value="100"
+              onchange="setQuality()"
+            />
+          </div>
+          <div class="form-check" style="display: inline-block" hidden>
+            <label class="form-check-label" for="qualityd"
+              >Dynamic Quality</label
+            >
+            <input
+              class="form-range"
+              style="display: block; width: 125px"
+              id="qualityd"
+              type="range"
+              min="5"
+              max="100"
+              step="5"
+              value="80"
+            />
+          </div>
+          <hr />
+          <div>
+            <details>
+              <summary>Message Log</summary>
+              <textarea id="message-area" style="width: 100%"></textarea>
+            </details>
+          </div>
+          <hr />
+          <div style="width: 100%; position: relative">
+            <img
+              class="center"
+              id="image"
+              width="600"
+              height="600"
+              style="width: inherit; border-radius: 4px"
+            />
+            <hr />
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+
+  <script>
+    let ws;
+    let img = document.getElementById("image");
+    let connect = (url) => {
+      let url_default = "ws://localhost:{WEBSOCKET_PORT}";
+      if (window.location.protocol == "file:")
+        url_default = "ws://localhost:7681";
+
+      if (!url) url = prompt("connect to websocket server:", url_default);
+      if (url == undefined) return;
+      let websocket = window["MozWebSocket"]
+        ? window["MozWebSocket"]
+        : window["WebSocket"];
+
+      ws = new websocket(url);
+      ws.onopen = (e) => {
+        logMessage("Opened websocket connection.");
+        window.onresize();
+      };
+      ws.onclose = (evt) => {
+        logMessage("Closed connection.");
+      };
+      ws.onmessage = async (evt) => {
+        if (evt.data[0] == "*") {
+          logMessage(evt.data.substring(1));
+          return;
+        }
+
+        const data = evt.data;
+        img.src = "data:image/jpg;base64," + data;
+        document.getElementById("size-label").innerHTML =
+          parseInt(data.length / 1000) + " kB";
+      };
+    };
+
+    const getFormattedTime = () => {
+      const now = new Date();
+      const hours = now.getHours().toString().padStart(2, "0");
+      const minutes = now.getMinutes().toString().padStart(2, "0");
+      const seconds = now.getSeconds().toString().padStart(2, "0");
+      return `${hours}:${minutes}:${seconds}`;
+    };
+
+    let nMessages = 0;
+    const logMessage = (msg) => {
+      nMessages++;
+      document.getElementById("message-area").innerHTML +=
+        `[${nMessages}] ${getFormattedTime()}: ${msg}\n`;
+    };
+
+    let picking = false;
+    let dragging = false;
+    img.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      dragging = true;
+      if (picking) {
+        const scaleX = img.naturalWidth / img.clientWidth;
+        const scaleY = img.naturalHeight / img.clientHeight;
+        const x = ("0000" + Math.round(e.offsetX * scaleX)).slice(-5);
+        const y = ("0000" + Math.round(e.offsetY * scaleY)).slice(-5);
+        const msg = "D" + x + y;
+        ws.send(msg);
+      }
+    });
+
+    img.addEventListener("mouseup", (e) => {
+      e.preventDefault();
+      dragging = false;
+    });
+
+    img.addEventListener("mousemove", (e) => {
+      const scaleX = img.naturalWidth / img.clientWidth;
+      const scaleY = img.naturalHeight / img.clientHeight;
+      const x = ("0000" + Math.round(e.offsetX * scaleX)).slice(-5);
+      const y = ("0000" + Math.round(e.offsetY * scaleY)).slice(-5);
+      const msg = "M" + (dragging ? "D" : "d") + "m" + x + y;
+      ws.send(msg);
+    });
+
+    img.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const msg = "W" + (e.deltaY > 0 ? "-" : "+");
+      ws.send(msg);
+    });
+
+    const SUPPRESSED_KEYS = new Set([
+      "ArrowUp",
+      "ArrowDown",
+      "ArrowLeft",
+      "ArrowRight",
+    ]);
+    window.addEventListener("keydown", (e) => {
+      if (SUPPRESSED_KEYS.has(e.key)) {
+        e.preventDefault();
+        if (e.key == "ArrowLeft") ws.send("KSTx");
+        if (e.key == "ArrowRight") ws.send("KStx");
+        if (e.key == "ArrowDown") ws.send("KSTy");
+        if (e.key == "ArrowUp") ws.send("KSty");
+      }
+      if (e.key == "f") ws.send("KSf");
+      if (e.key == "c") centerView();
+      if (e.key == "s") ws.send("KSs");
+      if (e.key == "S") ws.send("KSS");
+      if (e.key == "h") ws.send("KSh");
+      if (e.key == "p") ws.send("KSp");
+      if (e.key == "z") ws.send("W-");
+      if (e.key == "Z") ws.send("W+");
+      if (e.key === "Shift") {
+        document.body.style.cursor = "crosshair";
+        picking = true;
+      }
+    });
+
+    window.addEventListener("keyup", function (e) {
+      if (e.key === "Shift") {
+        document.body.style.cursor = "";
+        picking = false;
+      }
+    });
+
+    const setQuality = () => {
+      ws.send("KIQ" + document.getElementById("qualitys").value);
+    };
+
+    const setTransparency = () => {
+      ws.send("KIa" + document.getElementById("transparency").value);
+    };
+
+    let timeout;
+    window.onresize = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        const w = 4 * Math.floor(window.innerWidth / 4);
+        img.width = w;
+        img.setAttribute("width", w);
+        ws.send("KIW" + w);
+        setQuality(); // request an image update
+      }, 100);
+    };
+
+    const checkboxResult = (id) => {
+      if (document.getElementById(id).checked) return 1;
+      return 0;
+    };
+
+    const togglePrimitive = (id, c) => {
+      ws.send("KI" + c + checkboxResult(id));
+    };
+
+    const toggleLighting = () => {
+      ws.send("KIL" + checkboxResult("checkbox-lighting"));
+    };
+
+    const selectColormap = () => {
+      const dropdown = document.getElementById("colormap-dropdown");
+      let idx = dropdown.selectedIndex;
+      if (idx == 0) idx = 8; // default colormap
+      ws.send("KSC" + dropdown.options[idx].value);
+    };
+
+    const clip = () => {
+      const dropdown = document.getElementById("clip-dropdown");
+      const distance = document.getElementById("clip-distance").value;
+      const visible = checkboxResult("checkbox-plane");
+      let idx = dropdown.selectedIndex;
+      ws.send("KSc" + idx + visible + distance);
+    };
+
+    const updateClip = () => {
+      ws.send("KSx0");
+    };
+
+    const moveHyperplane = () => {
+      const distance = document.getElementById("clip-hyperplane").value;
+      ws.send("KSH" + distance);
+    };
+
+    const changeClipDirection = () => {
+      const d = document.getElementById("clip-direction").selectedIndex;
+      ws.send("KID" + d);
+    };
+
+    const centerView = () => {
+      ws.send("KSp");
+    };
+
+    const setHeight = () => {
+      const h = document.getElementById("input-height").value;
+      img.setAttribute("height", h);
+      ws.send("KIH" + h);
+      setQuality(); // request an image update
+    };
+
+    const toggleNumbers = () => {
+      const checkbox = document.getElementById("checkbox-vertex-numbers");
+      ws.send("KI#" + (checkbox.checked ? 1 : 0));
+    };
+
+    window.onload = () => {
+      connect("ws://localhost:7681");
+    };
+  </script>
+</html>
