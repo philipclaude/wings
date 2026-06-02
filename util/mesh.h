@@ -21,7 +21,6 @@
 #include <unordered_map>
 
 #include "array2d.h"
-#include "field.h"
 #include "types.h"
 
 namespace wings {
@@ -206,9 +205,6 @@ class Mesh {
   template <typename T>
   Topology<T>& get();
 
-  const FieldLibrary& fields() const { return fields_; }
-  FieldLibrary& fields() { return fields_; }
-
   int get_surface_connected_components(std::vector<int>& components) const;
 
  protected:
@@ -222,8 +218,6 @@ class Mesh {
   Topology<Polygon> polygons_;
   Topology<Polyhedron> polyhedra_;
   Topology<Pentatope> pentatopes_;
-
-  FieldLibrary fields_;
 };
 
 }  // namespace wings

@@ -89,7 +89,6 @@ if (${WINGS_BUILD_UTIL})
 	# add all the source files
 	set(SOURCES
 	util/bvh.cpp
-	util/field.cpp
 	util/log.cpp
 	util/mesh.cpp
 	util/shader.cpp
